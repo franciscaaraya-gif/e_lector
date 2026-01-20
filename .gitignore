@@ -1,28 +1,25 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
+# Dependencies
+node_modules
+.pnpm
 
-# testing
-/coverage
+# Next.js build output
+.next
+out
 
-# next.js
-/.next/
-/out/
+# Local Environment Variables
+.env
+.env*.local
 
-# production
-/build
+# Firebase Studio temporary files
+.firebase/
 
-# misc
+# Misc
 .DS_Store
 *.pem
 
-# debug
+# Log files
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# local env files
-.env*.local
