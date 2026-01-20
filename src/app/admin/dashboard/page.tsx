@@ -4,7 +4,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, Users } from 'lucide-react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { Poll } from '@/lib/types';
@@ -58,9 +58,9 @@ function PollsList() {
     return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
   }, [firestore, user]);
 
-  const { data: polls, loading } = useCollection<Poll>(pollsQuery);
+  const { data: polls, isLoading } = useCollection<Poll>(pollsQuery);
 
-  if (loading) {
+  if (isLoading) {
     // Muestra el esqueleto de carga mientras se obtienen los datos
     // Coincide con el `loading.tsx` para una transición suave.
     return (
@@ -95,9 +95,18 @@ function PollsList() {
 
   if (!polls || polls.length === 0) {
     return (
-      <div className="h-24 text-center flex flex-col justify-center items-center">
-        <p>No has creado ninguna encuesta todavía.</p>
-        <p className="text-muted-foreground text-sm">¡Empieza creando una!</p>
+      <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
+        <h3 className="text-lg font-semibold">Aún no tienes encuestas</h3>
+        <p className="text-muted-foreground text-sm max-w-md">
+          Para crear una encuesta, primero necesitas organizar a tus participantes en
+          {' '}<Link href="/admin/groups" className="font-medium text-primary hover:underline">grupos de votantes</Link>.
+        </p>
+        <Button asChild>
+          <Link href="/admin/groups">
+            <Users className="mr-2 h-4 w-4" />
+            Ir a Grupos
+          </Link>
+        </Button>
       </div>
     );
   }

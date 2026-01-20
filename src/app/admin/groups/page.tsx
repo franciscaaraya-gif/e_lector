@@ -4,7 +4,7 @@ import { collection, query, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { VoterGroup } from '@/lib/types';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CreateGroupDialog } from '@/components/admin/CreateGroupDialog';
 
 function GroupCard({ group }: { group: VoterGroup }) {
   return (
@@ -142,10 +143,7 @@ export default function GroupsPage() {
             <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
                 <CardTitle>Tus Grupos</CardTitle>
-                <Button className="w-full sm:w-auto" disabled>
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    Crear Grupo
-                </Button>
+                <CreateGroupDialog />
                 </div>
             </CardHeader>
             <CardContent>
