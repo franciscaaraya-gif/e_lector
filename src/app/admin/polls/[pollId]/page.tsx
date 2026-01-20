@@ -6,7 +6,7 @@ export function generateStaticParams() {
   return [];
 }
 
-export default function PollDetailsPage({ params }: { params: { pollId: string } }) {
+export default function PollDetailsPage() {
   return (
     <Card>
         <CardHeader>
