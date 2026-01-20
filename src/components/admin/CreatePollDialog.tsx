@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { addDoc, collection, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
 import { PlusCircle, Loader2, Trash2, Plus, GripVertical } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -82,7 +82,12 @@ export function CreatePollDialog() {
   const pollType = form.watch('pollType');
 
   const resetDialog = () => {
-    form.reset();
+    form.reset({
+        question: '',
+        options: [{ text: '' }, { text: '' }],
+        pollType: 'simple',
+        groupId: undefined,
+    });
     setIsLoading(false);
   }
 
@@ -95,11 +100,15 @@ export function CreatePollDialog() {
     try {
         const selectedGroup = voterGroups.find(g => g.id === values.groupId);
         if (!selectedGroup || !selectedGroup.voters || selectedGroup.voters.length === 0) {
+            setIsLoading(false);
             return toast({ variant: 'destructive', title: 'Grupo inválido', description: 'El grupo seleccionado no tiene votantes.' });
         }
 
         const pollsCollection = collection(firestore, 'admins', user.uid, 'polls');
+        const newPollRef = doc(pollsCollection); // Create ref for the new poll
+
         const newPollData = {
+            id: newPollRef.id,
             question: values.question,
             options: values.options.map((opt, index) => ({ id: `opt_${index + 1}`, text: opt.text })),
             pollType: values.pollType,
@@ -110,21 +119,19 @@ export function CreatePollDialog() {
             createdAt: serverTimestamp(),
         };
 
-        // 1. Create the poll document
-        const pollDocRef = await addDoc(pollsCollection, newPollData);
-        
-        // 2. Create a batch write for all voters
         const batch = writeBatch(firestore);
-        const votersCollection = collection(firestore, pollDocRef.path, 'voters');
+
+        // 1. Set the poll document
+        batch.set(newPollRef, newPollData);
         
+        // 2. Add all voters to the subcollection
+        const votersSubcollectionRef = collection(firestore, 'admins', user.uid, 'polls', newPollRef.id, 'voters');
         selectedGroup.voters.forEach(voter => {
-            const voterDocRef = collection(firestore, `admins/${user.uid}/polls/${pollDocRef.id}/voters`);
-            const newVoterRef = addDoc(voterDocRef, {
-                voterId: voter.id,
-                pollId: pollDocRef.id,
+            const newVoterDocRef = doc(votersSubcollectionRef); // Create a new doc ref for each voter
+            batch.set(newVoterDocRef, {
+                voterId: voter.id, // The business logic ID from the group
+                pollId: newPollRef.id,
                 hasVoted: false,
-            }).then().catch(e => {
-                console.log(e);
             });
         });
         
@@ -139,14 +146,23 @@ export function CreatePollDialog() {
         setOpen(false);
         resetDialog();
 
-    } catch (error) {
-        console.error(error);
-        const permissionError = new FirestorePermissionError({
-            path: `admins/${user.uid}/polls`,
-            operation: 'create',
-            requestResourceData: values,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    } catch (error: any) {
+        console.error("Error creating poll:", error);
+        
+        if (error.code && error.code.startsWith('permission-denied')) {
+            const permissionError = new FirestorePermissionError({
+                path: `admins/${user.uid}/polls`,
+                operation: 'create',
+                requestResourceData: values,
+            });
+            errorEmitter.emit('permission-error', permissionError);
+        } else {
+             toast({
+                variant: 'destructive',
+                title: 'Error al crear la encuesta',
+                description: error.message || 'No se pudo crear la encuesta. Revisa la consola para más detalles.'
+            });
+        }
     } finally {
         setIsLoading(false);
     }
@@ -299,7 +315,7 @@ export function CreatePollDialog() {
               )}
             />
 
-            <DialogFooter className="pt-4 sticky bottom-0 bg-background pb-0">
+            <DialogFooter className="pt-4 sticky bottom-0 bg-background pb-0 -mx-6 px-6 border-t">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading}>
                 Cancelar
               </Button>
