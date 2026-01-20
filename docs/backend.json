@@ -1,0 +1,79 @@
+
+{
+  "entities": {
+    "Poll": {
+      "title": "Poll",
+      "description": "Represents a poll with a question, options, and status.",
+      "type": "object",
+      "properties": {
+        "question": {
+          "type": "string",
+          "description": "The question of the poll."
+        },
+        "options": {
+          "type": "array",
+          "description": "The options for the poll.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "text"]
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "The status of the poll.",
+          "enum": ["draft", "active", "closed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The creation timestamp of the poll."
+        },
+        "creatorUid": {
+          "type": "string",
+          "description": "The UID of the user who created the poll."
+        }
+      },
+      "required": ["question", "options", "status", "createdAt", "creatorUid"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Represents a user's profile information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The user's unique ID."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        }
+      },
+      "required": ["uid", "email"]
+    }
+  },
+  "auth": {
+    "providers": ["google.com"]
+  },
+  "firestore": {
+    "/polls/{pollId}": {
+      "schema": {
+        "$ref": "#/entities/Poll"
+      },
+      "description": "Collection of polls."
+    }
+  }
+}
