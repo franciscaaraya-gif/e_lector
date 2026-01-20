@@ -1,10 +1,181 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model centered around
+ * administrators ("admins"). All data, including polls, voter lists, and votes, is
+ * hierarchically nested under the specific admin who created it.
+ *
+ * Data Structure: The database is organized under a top-level `/admins` collection. Each
+ * admin's document, identified by their UID (`/admins/{adminId}`), serves as the root
+ * for their own data tree, containing subcollections like `/polls`, `/voters`, and `/votes`.
+ *
+ * Key Security Decisions:
+ * - Admin Isolation: An authenticated admin can only access data within their own
+ *   document tree (`/admins/{their_own_uid}/...`). They have no visibility into or
+ *   access to data belonging to other admins.
+ * - No Public Listing: It is not possible to list all registered admins.
+ * - Anonymous Voting: While admins have full control over managing polls, any
+ *   signed-in user (including anonymous users) can submit a vote. However, they
+ *   cannot read, update, or delete any votes, ensuring ballot secrecy and integrity.
+ *
+ * Denormalization for Authorization: The rules rely on path-based ownership. Access
+ * to any subcollection (e.g., `/polls/{pollId}`) is granted by checking if the
+ * requesting user's UID matches the `{adminId}` wildcard in the path. This avoids
+ * costly `get()` calls and ensures fast, secure authorization.
+ *
+ * Structural Segregation: Each data type (Admins, Polls, Voters, Votes) is managed
+ * within its own dedicated collection or subcollection. This allows for clear,
+ * granular rules tailored to the specific access patterns of each entity.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny all access during setup
-    match /{document=**} {
-      allow read, write: if false;
+
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Verifies that the user is authenticated, including anonymous users.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Verifies that the currently authenticated user's UID matches the
+     * provided `userId`, establishing ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Verifies ownership for an existing document. Used for safe updates and deletes.
+     * Prevents operations on documents that do not exist.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+
+    // --- Create Request Validation ---
+
+    /**
+     * On create, validates that the new admin document's internal 'id'
+     * field matches the document ID from the path, ensuring data consistency.
+     */
+    function hasValidAdminDataOnCreate(adminId) {
+      return request.resource.data.id == adminId;
+    }
+
+    /**
+     * On create, validates that the new poll document's 'adminId' field
+     * matches the owner's UID from the path.
+     */
+    function hasValidPollDataOnCreate(adminId) {
+      return request.resource.data.adminId == adminId;
+    }
+
+    /**
+     * On create, validates that the new voter document's 'pollId' field
+     * matches the poll ID from the path.
+     */
+    function hasValidVoterDataOnCreate(pollId) {
+      return request.resource.data.pollId == pollId;
+    }
+
+    /**
+     * On create, validates that the new vote document's 'pollId' field
+     * matches the poll ID from the path.
+     */
+    function hasValidVoteDataOnCreate(pollId) {
+      return request.resource.data.pollId == pollId;
+    }
+
+    // --- Update Request Validation ---
+
+    /**
+     * On update, ensures the admin document's 'id' field cannot be changed.
+     */
+    function isAdminDataImmutable() {
+      return request.resource.data.id == resource.data.id;
+    }
+
+    /**
+     * On update, ensures the poll's 'adminId' field cannot be changed.
+     */
+    function isPollDataImmutable() {
+      return request.resource.data.adminId == resource.data.adminId;
+    }
+
+    /**
+     * On update, ensures the voter's 'pollId' field cannot be changed.
+     */
+    function isVoterDataImmutable() {
+      return request.resource.data.pollId == resource.data.pollId;
+    }
+
+
+    // ------------------------------------------------------------------------
+    // Collection Rules
+    // ------------------------------------------------------------------------
+
+    /**
+     * @description Manages admin user profiles.
+     * @path /admins/{adminId}
+     * @allow (create) A new user can create their own admin profile document.
+     * @deny (list) A user cannot get a list of all admins.
+     * @principle Enforces Self-Creation and Ownership. A user can create and manage their own profile, but cannot see or interact with others'.
+     */
+    match /admins/{adminId} {
+      allow get: if isOwner(adminId);
+      allow list: if false;
+      allow create: if isOwner(adminId) && hasValidAdminDataOnCreate(adminId);
+      allow update: if isExistingOwner(adminId) && isAdminDataImmutable();
+      allow delete: if isExistingOwner(adminId);
+    }
+
+    /**
+     * @description Manages polls created by a specific admin.
+     * @path /admins/{adminId}/polls/{pollId}
+     * @allow (create) An admin can create a new poll under their own ID. `(auth.uid == adminId)`
+     * @deny (create) An admin cannot create a poll under another admin's ID. `(auth.uid != adminId)`
+     * @principle Restricts access to a user's own data tree. Only the owning admin can manage their polls.
+     */
+    match /admins/{adminId}/polls/{pollId} {
+      allow get: if isOwner(adminId);
+      allow list: if isOwner(adminId);
+      allow create: if isOwner(adminId) && hasValidPollDataOnCreate(adminId);
+      allow update: if isExistingOwner(adminId) && isPollDataImmutable();
+      allow delete: if isExistingOwner(adminId);
+    }
+
+    /**
+     * @description Manages the list of voters for a specific poll.
+     * @path /admins/{adminId}/polls/{pollId}/voters/{voterId}
+     * @allow (update) The poll admin can update a voter's status (e.g., hasVoted). `(auth.uid == adminId)`
+     * @deny (update) Any user other than the poll admin cannot modify the voter list. `(auth.uid != adminId)`
+     * @principle Path-based ownership. Access is determined by the adminId in the path, ensuring only the poll creator can manage participants.
+     */
+    match /admins/{adminId}/polls/{pollId}/voters/{voterId} {
+      allow get: if isOwner(adminId);
+      allow list: if isOwner(adminId);
+      allow create: if isOwner(adminId) && hasValidVoterDataOnCreate(pollId);
+      allow update: if isExistingOwner(adminId) && isVoterDataImmutable();
+      allow delete: if isExistingOwner(adminId);
+    }
+
+    /**
+     * @description Manages anonymous votes for a specific poll.
+     * @path /admins/{adminId}/polls/{pollId}/votes/{voteId}
+     * @allow (create) Any signed-in user (including anonymous) can create a new vote.
+     * @deny (get, list, update) A voter cannot read, list, or change any votes, ensuring anonymity and integrity.
+     * @principle Public create with private read. Allows for write-only submissions from any user, while restricting data management to the owner.
+     */
+    match /admins/{adminId}/polls/{pollId}/votes/{voteId} {
+      allow get: if isOwner(adminId);
+      allow list: if isOwner(adminId);
+      allow create: if isSignedIn() && hasValidVoteDataOnCreate(pollId);
+      allow update: if false;
+      allow delete: if isExistingOwner(adminId);
     }
   }
 }
