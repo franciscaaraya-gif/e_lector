@@ -35,16 +35,14 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { PollResultsDialog } from '@/components/admin/PollResultsDialog';
 
-const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
+const statusVariant: { [key: string]: 'default' | 'secondary' } = {
   active: 'default',
   closed: 'secondary',
-  draft: 'outline',
 };
 
 const statusText: { [key: string]: string } = {
   active: 'Activa',
   closed: 'Cerrada',
-  draft: 'Borrador',
 };
 
 type MergedVoter = VoterInfo & { hasVoted: boolean };
@@ -170,7 +168,6 @@ export default function PollDetailsPage() {
   const [showResults, setShowResults] = useState(false);
   const [isConfirmAlertOpen, setConfirmAlertOpen] = useState(false);
   const [isQrModalOpen, setQrModalOpen] = useState(false);
-  const [actionToConfirm, setActionToConfirm] = useState<'activate' | 'close' | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -205,16 +202,16 @@ export default function PollDetailsPage() {
   };
   
   const handleStatusChangeConfirm = async () => {
-    if (!poll || !firestore || !user || !actionToConfirm) return;
+    if (!poll || !firestore || !user) return;
     
-    const newStatus = actionToConfirm === 'activate' ? 'active' : 'closed';
+    const newStatus = 'closed';
     const pollRef = doc(firestore, 'admins', user.uid, 'polls', poll.id);
 
     try {
         await updateDoc(pollRef, { status: newStatus });
         toast({
             title: "Estado Actualizado",
-            description: `La encuesta ahora está ${newStatus === 'active' ? 'activa' : 'cerrada'}.`,
+            description: `La encuesta ahora está cerrada.`,
         });
     } catch (error) {
         const permissionError = new FirestorePermissionError({
@@ -225,13 +222,7 @@ export default function PollDetailsPage() {
         errorEmitter.emit('permission-error', permissionError);
     } finally {
         setConfirmAlertOpen(false);
-        setActionToConfirm(null);
     }
-  }
-
-  const openConfirmationDialog = (action: 'activate' | 'close') => {
-    setActionToConfirm(action);
-    setConfirmAlertOpen(true);
   }
 
   if (isUserLoading || pollLoading || groupLoading || votersStatusLoading) {
@@ -273,11 +264,8 @@ export default function PollDetailsPage() {
               <CardDescription>Grupo de Votantes: {group?.name || 'Cargando...'} ({(group?.voters || []).length} votantes)</CardDescription>
             </div>
             <div className="flex items-center space-x-2 shrink-0">
-                {poll.status === 'draft' && (
-                    <Button onClick={() => openConfirmationDialog('activate')}>Activar Encuesta</Button>
-                )}
                 {poll.status === 'active' && (
-                    <Button onClick={() => openConfirmationDialog('close')} variant="destructive">Cerrar Encuesta</Button>
+                    <Button onClick={() => setConfirmAlertOpen(true)} variant="destructive">Cerrar Encuesta</Button>
                 )}
                 <Badge variant={statusVariant[poll.status] || 'secondary'} className="capitalize">
                     {statusText[poll.status] || poll.status}
@@ -353,8 +341,7 @@ export default function PollDetailsPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    {actionToConfirm === 'activate' && 'Al activar la encuesta, los votantes podrán empezar a emitir sus votos. ¿Deseas continuar?'}
-                    {actionToConfirm === 'close' && 'Al cerrar la encuesta, se detendrá la votación y podrás ver los resultados. ¿Deseas continuar?'}
+                    Al cerrar la encuesta, se detendrá la votación y podrás ver los resultados. ¿Deseas continuar?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

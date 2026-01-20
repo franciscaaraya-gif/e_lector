@@ -167,7 +167,6 @@ function GroupsList() {
                       <DropdownMenuItem asChild>
                         <Link href={`/admin/groups/${group.id}`}>Ver detalles</Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem disabled>Editar</DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
                         onClick={() => handleDeleteClick(group)}

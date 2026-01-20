@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type PollStatus = 'draft' | 'active' | 'closed';
+export type PollStatus = 'active' | 'closed';
 export type PollType = 'simple' | 'multiple';
 
 export type PollOption = {

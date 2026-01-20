@@ -29,7 +29,7 @@
         "status": {
           "type": "string",
           "description": "The status of the poll (e.g., open, closed).",
-          "enum": ["draft", "active", "closed"]
+          "enum": ["active", "closed"]
         },
         "pollType": {
           "type": "string",

@@ -17,16 +17,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { CreatePollDialog } from '@/components/admin/CreatePollDialog';
 
 
-const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
+const statusVariant: { [key: string]: 'default' | 'secondary' } = {
   active: 'default',
   closed: 'secondary',
-  draft: 'outline',
 };
 
 const statusText: { [key: string]: string } = {
   active: 'Activa',
   closed: 'Cerrada',
-  draft: 'Borrador',
 };
 
 function PollCard({ poll }: { poll: Poll }) {
@@ -155,7 +153,6 @@ function PollsList() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
-                      <DropdownMenuItem disabled>Editar</DropdownMenuItem>
                       <DropdownMenuItem className="text-destructive" disabled>Eliminar</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

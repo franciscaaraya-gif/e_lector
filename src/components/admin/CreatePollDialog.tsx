@@ -114,7 +114,7 @@ export function CreatePollDialog() {
             pollType: values.pollType,
             ...(values.pollType === 'multiple' && { maxSelections: values.maxSelections }),
             groupId: values.groupId,
-            status: 'draft' as const,
+            status: 'active' as const,
             adminId: user.uid,
             createdAt: serverTimestamp(),
         };
@@ -184,7 +184,7 @@ export function CreatePollDialog() {
         <DialogHeader>
           <DialogTitle>Crear Nueva Encuesta</DialogTitle>
           <DialogDescription>
-            Configura los detalles de tu encuesta. Podrás activarla más tarde.
+            Configura los detalles de tu encuesta. Se creará como "activa" inmediatamente.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
