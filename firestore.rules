@@ -75,6 +75,14 @@ service cloud.firestore {
     }
 
     /**
+     * On create, validates that the new group document's 'adminId' field
+     * matches the owner's UID from the path.
+     */
+    function hasValidGroupDataOnCreate(adminId) {
+      return request.resource.data.adminId == adminId;
+    }
+
+    /**
      * On create, validates that the new voter document's 'pollId' field
      * matches the poll ID from the path.
      */
@@ -103,6 +111,13 @@ service cloud.firestore {
      * On update, ensures the poll's 'adminId' field cannot be changed.
      */
     function isPollDataImmutable() {
+      return request.resource.data.adminId == resource.data.adminId;
+    }
+
+    /**
+     * On update, ensures the group's 'adminId' field cannot be changed.
+     */
+    function isGroupDataImmutable() {
       return request.resource.data.adminId == resource.data.adminId;
     }
 
@@ -175,6 +190,21 @@ service cloud.firestore {
                 allow update: if false;
                 allow delete: if isExistingOwner(adminId);
             }
+        }
+
+        /**
+         * @description Manages voter groups created by a specific admin.
+         * @path /admins/{adminId}/groups/{groupId}
+         * @allow (create) An admin can create a new group under their own ID. `(auth.uid == adminId)`
+         * @deny (create) An admin cannot create a group under another admin's ID. `(auth.uid != adminId)`
+         * @principle Restricts access to a user's own data tree. Only the owning admin can manage their groups.
+         */
+        match /groups/{groupId} {
+            allow get: if isOwner(adminId);
+            allow list: if isOwner(adminId);
+            allow create: if isOwner(adminId) && hasValidGroupDataOnCreate(adminId);
+            allow update: if isExistingOwner(adminId) && isGroupDataImmutable();
+            allow delete: if isExistingOwner(adminId);
         }
     }
   }

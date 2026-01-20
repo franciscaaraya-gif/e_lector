@@ -13,5 +13,13 @@ export type Poll = {
   options: PollOption[];
   status: PollStatus;
   createdAt: Timestamp;
-  creatorUid: string;
+  adminId: string;
+};
+
+export type VoterGroup = {
+  id: string;
+  name: string;
+  adminId: string;
+  voterIds: string[];
+  createdAt: Timestamp;
 };

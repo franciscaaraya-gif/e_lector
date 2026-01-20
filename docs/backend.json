@@ -18,7 +18,12 @@
           "type": "array",
           "description": "Available options for the poll question.",
           "items": {
-            "type": "string"
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" }
+            },
+            "required": ["id", "text"]
           }
         },
         "status": {
@@ -29,6 +34,11 @@
         "adminId": {
           "type": "string",
           "description": "Reference to the Admin who created the poll. (Relationship: Admin 1:N Poll)"
+        },
+        "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp of when the poll was created."
         }
       },
       "required": [
@@ -36,7 +46,8 @@
         "question",
         "options",
         "status",
-        "adminId"
+        "adminId",
+        "createdAt"
       ]
     },
     "Voter": {
@@ -114,6 +125,24 @@
         "id",
         "email"
       ]
+    },
+    "VoterGroup": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": "Voter Group",
+        "type": "object",
+        "description": "Represents a reusable group of voters created by an admin.",
+        "properties": {
+          "id": { "type": "string", "description": "Unique identifier for the voter group." },
+          "name": { "type": "string", "description": "The name of the voter group." },
+          "adminId": { "type": "string", "description": "The ID of the admin who owns this group." },
+          "voterIds": {
+            "type": "array",
+            "description": "A list of unique identifiers for the voters in this group.",
+            "items": { "type": "string" }
+          },
+          "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the group was created." }
+        },
+        "required": ["id", "name", "adminId", "voterIds", "createdAt"]
     }
   },
   "auth": {
@@ -207,8 +236,28 @@
             }
           ]
         }
+      },
+      {
+        "path": "/admins/{adminId}/groups/{groupId}",
+        "definition": {
+          "entityName": "VoterGroup",
+          "schema": {
+            "$ref": "#/backend/entities/VoterGroup"
+          },
+          "description": "Subcollection to store reusable voter groups created by each admin.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "Unique identifier for the administrator."
+            },
+            {
+              "name": "groupId",
+              "description": "Unique identifier for the voter group."
+            }
+          ]
+        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, adhering to the principles of DBAC (Database-Based Access Control) and QAPs (Rules are not Filters).  It leverages denormalization to avoid `get()` calls in security rules, enabling atomic operations and simplifying debugging.\n\n**Authorization Independence:**\n\n*   `Polls`: The `adminId` field within each poll document directly associates the poll with its creator, eliminating the need to fetch admin data during authorization.\n*   `Voters`: The `pollId` field within each voter document links the voter to a specific poll. This design prevents the need to query across different polls for voting status and maintains authorization independence.\n\n**Structural Segregation:**\n\n*   The database separates polls, voters, and votes into distinct collections. This segregation allows for specific and straightforward security rules for each entity.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** Polls are accessed via `/admins/{adminId}/polls/{pollId}`, making ownership clear and security rules simple.\n*   **One-to-Many Relationship:** The structure reflects the one-to-many relationships between Admins and Polls, Polls and Voters, and Polls and Votes through hierarchical paths.\n\n**QAPs Support:**\n\n*   The structure enables secure `list` operations because access control is enforced at the collection level (e.g., only the admin can list polls under their ID).\n\n**Invariants:**\n\n*   The structure supports the integrity of ownership, timestamps, and denormalized data. For example, `adminId` maintains clear ownership of polls."
+    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, adhering to the principles of DBAC (Database-Based Access Control) and QAPs (Rules are not Filters).  It leverages denormalization to avoid `get()` calls in security rules, enabling atomic operations and simplifying debugging.\n\n**Authorization Independence:**\n\n*   `Polls`: The `adminId` field within each poll document directly associates the poll with its creator, eliminating the need to fetch admin data during authorization.\n*   `Voters`: The `pollId` field within each voter document links the voter to a specific poll. This design prevents the need to query across different polls for voting status and maintains authorization independence.\n*   `VoterGroups`: Are stored under the admin who created them, ensuring strict ownership and simple security rules.\n\n**Structural Segregation:**\n\n*   The database separates polls, voters, votes, and groups into distinct collections. This segregation allows for specific and straightforward security rules for each entity.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** Polls and Groups are accessed via `/admins/{adminId}/...`, making ownership clear and security rules simple.\n*   **One-to-Many Relationship:** The structure reflects the one-to-many relationships between Admins and Polls, Admins and VoterGroups, Polls and Voters, and Polls and Votes through hierarchical paths.\n\n**QAPs Support:**\n\n*   The structure enables secure `list` operations because access control is enforced at the collection level (e.g., only the admin can list polls/groups under their ID).\n\n**Invariants:**\n\n*   The structure supports the integrity of ownership, timestamps, and denormalized data. For example, `adminId` maintains clear ownership."
   }
 }
