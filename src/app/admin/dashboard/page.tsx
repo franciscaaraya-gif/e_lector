@@ -1,13 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
 import { collection, query, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
 
-import { useFirestore, useCollection } from '@/firebase';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { Poll } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -52,10 +51,12 @@ function PollCard({ poll }: { poll: Poll }) {
 
 function PollsList() {
   const firestore = useFirestore();
-  const pollsQuery = useMemo(() => {
-    if (!firestore) return null;
-    return query(collection(firestore, 'polls'), orderBy('createdAt', 'desc'));
-  }, [firestore]);
+  const { user } = useUser();
+
+  const pollsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
 
   const { data: polls, loading } = useCollection<Poll>(pollsQuery);
 
