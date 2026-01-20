@@ -1,13 +1,13 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, Query, DocumentData } from 'firebase/firestore';
+import { useMemo } from 'react';
+import { collection, query, orderBy } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MoreHorizontal, PlusCircle } from 'lucide-react';
 
-import { useFirestore } from '@/firebase';
+import { useFirestore, useCollection } from '@/firebase';
 import { Poll } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,35 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 
-// Hook para obtener datos de una colección en tiempo real.
-function useCollection<T extends DocumentData>(q: Query | null) {
-  const [data, setData] = useState<T[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    if (!q) {
-      setLoading(false);
-      setData([]);
-      return;
-    }
-    const unsubscribe = onSnapshot(q, 
-      (snapshot) => {
-        const docs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as T));
-        setData(docs);
-        setLoading(false);
-      }, 
-      (err) => {
-        console.error(err);
-        setError(err);
-        setLoading(false);
-      }
-    );
-    return () => unsubscribe();
-  }, [q]);
-
-  return { data, loading, error };
-}
 
 const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
   active: 'default',
