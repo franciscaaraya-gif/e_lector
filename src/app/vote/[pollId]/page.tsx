@@ -5,10 +5,7 @@ import { ElectorIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
-
-export function generateStaticParams() {
-  return [];
-}
+export const dynamic = 'force-dynamic';
 
 function VotePageClient() {
     const headerContent = (
