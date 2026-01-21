@@ -161,7 +161,7 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
 
 export default function PollDetailsPage() {
   const { pollId } = useParams() as { pollId: string };
-  const { user, isUserLoading } = useUser();
+  const { user, isUserLoading } = useUserHook();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollUrl, setPollUrl] = useState('');
