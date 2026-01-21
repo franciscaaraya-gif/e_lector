@@ -15,7 +15,7 @@ import { ElectorIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth, useFirestore } from '@/firebase';
+import { useAuth, useFirestore, useUserHook } from '@/firebase';
 import { Poll, PollLookup, VoterStatus } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -35,26 +35,36 @@ function VotePageClient() {
     const [voterDocId, setVoterDocId] = useState<string | null>(null);
     const [adminId, setAdminId] = useState<string | null>(null);
     const [error, setError] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(true);
+    const [isFetchingData, setIsFetchingData] = useState(true);
 
     const firestore = useFirestore();
     const auth = useAuth();
+    const { user, isUserLoading: isAuthLoading } = useUserHook();
 
     // Anonymous sign-in effect
     useEffect(() => {
-        if (!auth || auth.currentUser) return;
+        if (!auth || isAuthLoading || user) return;
+
         signInAnonymously(auth).catch(err => {
             console.error("Anonymous sign-in failed", err);
             setError("Se requiere autenticación para votar.");
         });
-    }, [auth]);
+    }, [auth, user, isAuthLoading]);
 
     // Data fetching effect
     useEffect(() => {
-        if (!firestore || !pollId || !voterId || !auth?.currentUser) return;
+        if (!firestore || !pollId || !voterId || isAuthLoading || !user) {
+            if (!isAuthLoading) {
+                setIsFetchingData(false);
+            }
+             if (!pollId || !voterId && !isAuthLoading) {
+                setError("Faltan el ID de la encuesta o el ID de votante en la URL.");
+            }
+            return;
+        }
 
         const fetchPollData = async () => {
-            setIsLoading(true);
+            setIsFetchingData(true);
             setError('');
             try {
                 const lookupSnap = await getDoc(doc(firestore, 'poll-lookup', pollId));
@@ -83,12 +93,12 @@ function VotePageClient() {
             } catch (err: any) {
                 setError(err.message);
             } finally {
-                setIsLoading(false);
+                setIsFetchingData(false);
             }
         };
 
         fetchPollData();
-    }, [firestore, auth?.currentUser, pollId, voterId]);
+    }, [firestore, user, isAuthLoading, pollId, voterId]);
 
     // Dynamic Zod schema based on poll type
     const formSchema = z.object({
@@ -146,7 +156,7 @@ function VotePageClient() {
         </div>
     );
     
-    if (isLoading) {
+    if (isAuthLoading || isFetchingData) {
         return (
              <div className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
                 <div className="w-full max-w-2xl">
