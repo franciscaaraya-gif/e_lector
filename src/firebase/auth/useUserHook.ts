@@ -1,21 +1,3 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/firebase/config";
-
-export function useUserHook() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  return { user, loading };
-}
+// This file is intentionally left blank.
+// The centralized `useUserHook` from `@/firebase/provider` should be used instead
+// to ensure Firebase services are only initialized on the client-side.

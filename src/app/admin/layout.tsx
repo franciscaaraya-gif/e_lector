@@ -3,7 +3,7 @@
 import { useEffect, ReactNode } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from 'next/link';
-import { useUserHook } from "@/firebase/auth/useUserHook";
+import { useUserHook } from "@/firebase";
 import { SidebarProvider, SidebarInset, SidebarTrigger, Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu } from "@/components/ui/sidebar";
 import { AdminSidebar } from "@/components/layout/AdminSidebar";
 import { ElectorIcon } from "@/components/icons";
@@ -17,7 +17,7 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, loading } = useUserHook();
+  const { user, isUserLoading: loading } = useUserHook();
   const router = useRouter();
   const pathname = usePathname();
 
