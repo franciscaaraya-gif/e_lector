@@ -50,3 +50,7 @@ export type VoterStatus = {
 export type PollLookup = {
   adminId: string;
 };
+
+export type AuthorizedAdmin = {
+  email: string;
+};

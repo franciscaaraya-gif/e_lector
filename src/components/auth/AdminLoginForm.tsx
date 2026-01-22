@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signInWithPopup, OAuthProvider, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore'; 
+import { doc, getDoc, collection, query, where, getDocs, setDoc } from 'firebase/firestore'; 
 import { useAuth, useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -96,21 +96,43 @@ export function AdminLoginForm() {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
 
-      // Check if the user is an authorized admin
-      const adminDocRef = doc(firestore, 'admins', user.uid);
-      const adminDocSnap = await getDoc(adminDocRef);
+      if (!user.email) {
+          await signOut(auth);
+          toast({
+            variant: 'destructive',
+            title: 'Error de Cuenta',
+            description: 'Tu cuenta de Microsoft no tiene un correo electrónico asociado.'
+          });
+          setIsMicrosoftLoading(false);
+          return;
+      }
 
-      if (!adminDocSnap.exists()) {
-        // If the user document doesn't exist, they are not authorized.
+      // Check if the user's email is in the authorized list
+      const authQuery = query(collection(firestore, "authorizedAdmins"), where("email", "==", user.email));
+      const authQuerySnapshot = await getDocs(authQuery);
+
+      if (authQuerySnapshot.empty) {
+        // If the user's email is not in the whitelist, they are not authorized.
         await signOut(auth);
         toast({
           variant: 'destructive',
           title: 'Acceso Denegado',
           description: 'Tu cuenta de Microsoft no está autorizada para administrar esta plataforma.'
         });
-      }
-      // If the doc exists, the onAuthStateChanged in AdminLayout will handle the redirect.
+      } else {
+          // User is authorized. Now, ensure their admin document exists.
+          const adminDocRef = doc(firestore, 'admins', user.uid);
+          const adminDocSnap = await getDoc(adminDocRef);
 
+          if (!adminDocSnap.exists()) {
+              // First time login for this authorized user, create their admin profile.
+              await setDoc(adminDocRef, {
+                  id: user.uid,
+                  email: user.email,
+              });
+          }
+          // The onAuthStateChanged in AdminLayout will handle the redirect.
+      }
     } catch (error: any) {
       let description = 'Ocurrió un error inesperado al intentar iniciar sesión con Microsoft.';
       if (error.code === 'auth/popup-closed-by-user') {

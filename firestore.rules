@@ -207,6 +207,18 @@ service cloud.firestore {
             allow delete: if isExistingOwner(adminId);
         }
     }
+
+    /**
+     * @description Whitelist of emails authorized to be admins. Used to verify social logins.
+     * @path /authorizedAdmins/{authId}
+     * @allow (list) Any signed-in user can query this collection to check for their own email during login.
+     * @deny (get, create, update, delete) Direct document access and modification are disallowed for security. Manage this list via the Firebase Console.
+     */
+    match /authorizedAdmins/{authId} {
+        allow get: if false;
+        allow list: if isSignedIn();
+        allow create, update, delete: if false;
+    }
     
     /**
      * @description Public lookup table to find the adminId for a pollId.

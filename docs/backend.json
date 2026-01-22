@@ -181,6 +181,19 @@
         }
       },
       "required": ["adminId"]
+    },
+    "AuthorizedAdmin": {
+      "title": "Authorized Admin",
+      "type": "object",
+      "description": "Represents an email address that is authorized to be an administrator.",
+      "properties": {
+        "email": {
+          "type": "string",
+          "description": "The email address of the authorized admin.",
+          "format": "email"
+        }
+      },
+      "required": ["email"]
     }
   },
   "auth": {
@@ -308,6 +321,22 @@
             {
               "name": "pollId",
               "description": "Unique identifier for the poll."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/authorizedAdmins/{authId}",
+        "definition": {
+          "entityName": "AuthorizedAdmin",
+          "schema": {
+            "$ref": "#/backend/entities/AuthorizedAdmin"
+          },
+          "description": "A whitelist collection of emails for users who are permitted to be administrators. This list should be managed from the Firebase Console.",
+          "params": [
+            {
+              "name": "authId",
+              "description": "Unique identifier for the authorized email document."
             }
           ]
         }
