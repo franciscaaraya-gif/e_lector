@@ -21,7 +21,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUserHook } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
@@ -47,7 +47,7 @@ export function CreateGroupDialog() {
   const [parsedVoters, setParsedVoters] = useState<ParsedVoter[]>([]);
   const { toast } = useToast();
   const firestore = useFirestore();
-  const { user } = useUserHook();
+  const { user } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useUserHook, useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { useUser, useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, collection, updateDoc, getDoc } from 'firebase/firestore';
 import { Poll, VoterGroup, VoterInfo, VoterStatus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -161,7 +161,7 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
 
 export default function PollDetailsPage() {
   const { pollId } = useParams() as { pollId: string };
-  const { user, isUserLoading } = useUserHook();
+  const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const { toast } = useToast();
   const [pollUrl, setPollUrl] = useState('');

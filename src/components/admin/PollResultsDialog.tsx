@@ -6,7 +6,7 @@ import {
   YAxis,
   Tooltip
 } from "recharts"
-import { useCollection, useFirestore, useUserHook, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, Vote } from '@/lib/types';
 import { collection } from 'firebase/firestore';
 import {
@@ -29,7 +29,7 @@ interface PollResultsDialogProps {
 
 export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialogProps) {
     const firestore = useFirestore();
-    const { user } = useUserHook();
+    const { user } = useUser();
 
     const votesRef = useMemoFirebase(() => {
         if (!firestore || !user) return null;

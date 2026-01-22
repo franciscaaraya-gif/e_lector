@@ -7,7 +7,7 @@ import { es } from 'date-fns/locale';
 import { MoreHorizontal, Users } from 'lucide-react';
 import { useState } from 'react';
 
-import { useFirestore, useCollection, useUserHook, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, VoterGroup } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -64,7 +64,7 @@ function PollCard({ poll }: { poll: Poll }) {
 
 function PollsList() {
   const firestore = useFirestore();
-  const { user } = useUserHook();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);

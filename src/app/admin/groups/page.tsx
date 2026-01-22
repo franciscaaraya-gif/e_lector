@@ -7,7 +7,7 @@ import { es } from 'date-fns/locale';
 import { MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
 
-import { useFirestore, useCollection, useUserHook, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { VoterGroup } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -53,7 +53,7 @@ function GroupCard({ group }: { group: VoterGroup }) {
 
 function GroupsList() {
   const firestore = useFirestore();
-  const { user } = useUserHook();
+  const { user } = useUser();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<VoterGroup | null>(null);

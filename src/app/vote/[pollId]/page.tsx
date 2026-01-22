@@ -15,7 +15,7 @@ import { ElectorIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth, useFirestore, useUserHook } from '@/firebase';
+import { useAuth, useFirestore, useUser } from '@/firebase';
 import { Poll, PollLookup, VoterStatus } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -39,7 +39,7 @@ function VotePageClient() {
 
     const firestore = useFirestore();
     const auth = useAuth();
-    const { user, isUserLoading: isAuthLoading } = useUserHook();
+    const { user, isUserLoading: isAuthLoading } = useUser();
 
     // Anonymous sign-in effect
     useEffect(() => {
