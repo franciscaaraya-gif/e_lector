@@ -3,7 +3,7 @@
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where, getDocs, writeBatch, limit } from 'firebase/firestore';
+import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { VoterGroup } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -50,16 +50,19 @@ export default function GroupDetailsPage() {
         });
 
         let updatedInPollsCount = 0;
+        const pollsCheckedCount = activePollDocs.length;
 
+        // This is an expensive operation if there are many active polls with many voters,
+        // but it's the most robust way to ensure propagation without depending on complex indexes.
         for (const pollDoc of activePollDocs) {
             const votersSubcollectionRef = collection(pollDoc.ref, 'voters');
-            const voterInPollQuery = query(votersSubcollectionRef, where('voterId', '==', voterId), limit(1));
-            const voterSnapshot = await getDocs(voterInPollQuery);
+            const allVotersInPollSnapshot = await getDocs(votersSubcollectionRef);
 
-            if (!voterSnapshot.empty) {
+            const voterDocToUpdate = allVotersInPollSnapshot.docs.find(voterDoc => voterDoc.data().voterId === voterId);
+
+            if (voterDocToUpdate) {
+                batch.update(voterDocToUpdate.ref, { enabled: newStatus });
                 updatedInPollsCount++;
-                const voterDocToUpdateRef = voterSnapshot.docs[0].ref;
-                batch.update(voterDocToUpdateRef, { enabled: newStatus });
             }
         }
         
@@ -67,14 +70,10 @@ export default function GroupDetailsPage() {
 
         toast({
             title: "Estado del votante actualizado",
-            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${activePollDocs.length} encuesta(s) activa(s).`,
+            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${pollsCheckedCount} encuesta(s) activa(s).`,
         });
     } catch (err: any) {
         let description = "No se pudo cambiar el estado del votante.";
-        // Check for missing Firestore index error, which can happen with complex queries
-        if (err.code === 'failed-precondition') {
-            description = "La base de datos requiere una configuración (índice) para esta operación. Revisa la consola del navegador para ver el enlace y crearlo.";
-        }
         
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: groupRef.path,
@@ -87,7 +86,6 @@ export default function GroupDetailsPage() {
             title: "Error al actualizar",
             description: description,
         });
-        // Optionally revert the switch in the UI
     }
   };
 
