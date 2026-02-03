@@ -8,6 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { collection } from 'firebase/firestore';
 import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { Sala } from '@/lib/types';
+import { useMemo } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +49,23 @@ export default function VoterInboxLoginPage() {
     router.push(`/inbox/polls?salaId=${values.salaId.trim()}&voterId=${values.voterId.trim()}`);
   }
 
+  const salaOptions = useMemo(() => {
+    if (salasLoading) {
+      return <SelectItem key="loading" value="loading" disabled>Cargando salas...</SelectItem>;
+    }
+    if (salasError) {
+        return <SelectItem key="error" value="error" disabled>Error al cargar salas</SelectItem>;
+    }
+    if (!salas || salas.length === 0) {
+      return <SelectItem key="no-salas" value="no-salas" disabled>No hay salas disponibles</SelectItem>;
+    }
+    return salas.map((sala) => (
+      <SelectItem key={sala.id} value={sala.adminId}>
+        {sala.name || sala.adminId}
+      </SelectItem>
+    ));
+  }, [salas, salasLoading, salasError]);
+
   const isLoading = isSubmitting;
 
   return (
@@ -68,22 +86,14 @@ export default function VoterInboxLoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sala de Votación</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={salasLoading || isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={salasLoading || isLoading}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={
-                            salasLoading ? "Cargando salas..." :
-                            !salas || salas.length === 0 ? "No hay salas disponibles" :
-                            "Selecciona una sala"
-                          } />
+                          <SelectValue placeholder="Selecciona una sala" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {salas && salas.map((sala) => (
-                          <SelectItem key={sala.id} value={sala.adminId}>
-                            {sala.name}
-                          </SelectItem>
-                        ))}
+                        {salaOptions}
                       </SelectContent>
                     </Select>
                     <FormMessage />
