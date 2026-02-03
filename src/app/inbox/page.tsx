@@ -37,7 +37,7 @@ export default function VoterInboxLoginPage() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { 
+    defaultValues: {
       voterId: '',
       salaAdminId: '',
     },
@@ -70,7 +70,7 @@ export default function VoterInboxLoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sala de Votación</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder={salasLoading ? "Cargando salas..." : "Selecciona una sala"} />
