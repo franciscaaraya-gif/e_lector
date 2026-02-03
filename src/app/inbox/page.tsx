@@ -70,17 +70,22 @@ export default function VoterInboxLoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sala de Votación</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={salasLoading ? "Cargando salas..." : "Selecciona una sala"} />
+                          <SelectValue placeholder="Selecciona una sala" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {salas?.map(sala => (
-                          <SelectItem key={sala.id} value={sala.adminId}>{sala.name}</SelectItem>
-                        ))}
-                         {!salasLoading && (!salas || salas.length === 0) && (
+                        {salasLoading ? (
+                          <p className="p-4 text-sm text-muted-foreground text-center">Cargando salas...</p>
+                        ) : salas && salas.length > 0 ? (
+                          salas.map((sala) => (
+                            <SelectItem key={sala.id} value={sala.adminId}>
+                              {sala.name}
+                            </SelectItem>
+                          ))
+                        ) : (
                           <p className="p-4 text-sm text-muted-foreground">No hay salas disponibles.</p>
                         )}
                       </SelectContent>
@@ -102,7 +107,7 @@ export default function VoterInboxLoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full mt-4" disabled={isLoading}>
+              <Button type="submit" className="w-full mt-4" disabled={isLoading || !form.formState.isValid}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Ver mis encuestas
               </Button>
