@@ -15,8 +15,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle } from 'lucide-react';
 
 const formSchema = z.object({
   salaId: z.string().min(1, 'Debes seleccionar una sala de votación.'),
@@ -49,23 +47,6 @@ export default function VoterInboxLoginPage() {
     router.push(`/inbox/polls?salaId=${values.salaId.trim()}&voterId=${values.voterId.trim()}`);
   }
 
-  const salaOptions = useMemo(() => {
-    if (salasLoading) {
-      return <SelectItem key="loading" value="loading" disabled>Cargando salas...</SelectItem>;
-    }
-    if (salasError) {
-        return <SelectItem key="error" value="error" disabled>Error al cargar salas</SelectItem>;
-    }
-    if (!salas || salas.length === 0) {
-      return <SelectItem key="no-salas" value="no-salas" disabled>No hay salas disponibles</SelectItem>;
-    }
-    return salas.map((sala) => (
-      <SelectItem key={sala.id} value={sala.adminId}>
-        {sala.name || sala.adminId}
-      </SelectItem>
-    ));
-  }, [salas, salasLoading, salasError]);
-
   const isLoading = isSubmitting;
 
   return (
@@ -93,7 +74,16 @@ export default function VoterInboxLoginPage() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {salaOptions}
+                        {salasLoading && <SelectItem key="loading" value="loading" disabled>Cargando salas...</SelectItem>}
+                        {salasError && <SelectItem key="error" value="error" disabled>Error al cargar salas</SelectItem>}
+                        {!salasLoading && !salasError && (!salas || salas.length === 0) && (
+                            <SelectItem key="no-salas" value="no-salas" disabled>No hay salas disponibles</SelectItem>
+                        )}
+                        {!salasLoading && !salasError && salas && salas.map((sala) => (
+                          <SelectItem key={sala.id} value={sala.adminId}>
+                            {sala.name || sala.adminId}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -121,32 +111,6 @@ export default function VoterInboxLoginPage() {
           </Form>
         </CardContent>
       </Card>
-      
-      {/* Temporal Debug Panel */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Estado de Depuración</CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs space-y-2">
-          <p><strong>Cargando:</strong> {salasLoading ? 'Sí' : 'No'}</p>
-          {salasError && (
-            <Alert variant="destructive" className="text-xs">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>
-                {salasError.message}
-              </AlertDescription>
-            </Alert>
-          )}
-          <p><strong>Salas encontradas:</strong> {salas ? salas.length : '0'}</p>
-          {salas && salas.length > 0 && (
-            <pre className="bg-muted p-2 rounded-md overflow-x-auto">
-              {JSON.stringify(salas, null, 2)}
-            </pre>
-          )}
-        </CardContent>
-      </Card>
-
     </div>
   );
 }
