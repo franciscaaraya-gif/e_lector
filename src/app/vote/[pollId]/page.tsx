@@ -43,7 +43,7 @@ function VotePageClient() {
 
     // Anonymous sign-in effect
     useEffect(() => {
-        if (!auth || isUserLoading || user) return;
+        if (!auth || isAuthLoading || user) return;
 
         signInAnonymously(auth).catch(err => {
             setError("Se requiere autenticación para votar.");
