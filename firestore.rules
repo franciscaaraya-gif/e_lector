@@ -239,5 +239,17 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if isOwner(resource.data.adminId);
     }
+
+    /**
+     * @description Public list of voting rooms ('salas') for the voter inbox dropdown.
+     * @path /salas/{salaId}
+     * @allow (list) Anyone can read the list of salas to populate the login dropdown.
+     * @deny (get, create, update, delete) For this simple implementation, sala management is done via the Firebase Console.
+     */
+    match /salas/{salaId} {
+      allow get: if true;
+      allow list: if true;
+      allow create, update, delete: if false;
+    }
   }
 }

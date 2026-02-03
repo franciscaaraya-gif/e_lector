@@ -199,6 +199,26 @@
         }
       },
       "required": ["email"]
+    },
+    "Sala": {
+      "title": "Sala",
+      "type": "object",
+      "description": "Represents a public room or space for voting, linked to an admin.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the sala."
+        },
+        "name": {
+          "type": "string",
+          "description": "The public display name of the sala."
+        },
+        "adminId": {
+          "type": "string",
+          "description": "The UID of the admin who owns this sala."
+        }
+      },
+      "required": ["id", "name", "adminId"]
     }
   },
   "auth": {
@@ -342,6 +362,22 @@
             {
               "name": "authId",
               "description": "Unique identifier for the authorized email document."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/salas/{salaId}",
+        "definition": {
+          "entityName": "Sala",
+          "schema": {
+            "$ref": "#/backend/entities/Sala"
+          },
+          "description": "A public collection mapping friendly names to admin IDs for the voter inbox.",
+          "params": [
+            {
+              "name": "salaId",
+              "description": "Unique identifier for the sala document."
             }
           ]
         }

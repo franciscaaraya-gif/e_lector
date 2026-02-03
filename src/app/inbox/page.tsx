@@ -6,39 +6,55 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { collection } from 'firebase/firestore';
 
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { Sala } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const formSchema = z.object({
-  salaId: z.string().min(1, { message: 'El ID de la sala es requerido.' }),
+  salaAdminId: z.string({ required_error: 'Debes seleccionar una sala.' }).min(1, "Debes seleccionar una sala."),
   voterId: z.string().min(1, { message: 'Tu ID de votante es requerido.' }),
 });
 
 export default function VoterInboxLoginPage() {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const firestore = useFirestore();
+
+  const salasQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'salas');
+  }, [firestore]);
+  
+  const { data: salas, isLoading: salasLoading } = useCollection<Sala>(salasQuery);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: { salaId: '', voterId: '' },
+    defaultValues: { voterId: '' },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
-    const salaId = values.salaId.trim();
+    setIsSubmitting(true);
+    const salaId = values.salaAdminId;
     const voterId = values.voterId.trim();
+    // The query param is still called `salaId` but it contains the admin UID
     router.push(`/inbox/polls?salaId=${salaId}&voterId=${voterId}`);
   }
+
+  const isLoading = salasLoading || isSubmitting;
 
   return (
     <Card className="shadow-lg">
       <CardHeader>
         <CardTitle className="text-2xl font-headline">Bandeja de Votación</CardTitle>
         <CardDescription>
-            Ingresa el ID de la sala y tu ID de votante para ver tus encuestas.
+            Selecciona la sala de votación e ingresa tu ID para ver tus encuestas.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,13 +62,25 @@ export default function VoterInboxLoginPage() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="salaId"
+              name="salaAdminId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>ID de la Sala</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Pega el ID de la sala aquí" {...field} disabled={isLoading} />
-                  </FormControl>
+                  <FormLabel>Sala de Votación</FormLabel>
+                   <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder={salasLoading ? "Cargando salas..." : "Selecciona una sala"} />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {!salasLoading && salas?.length === 0 && (
+                        <p className="p-4 text-sm text-muted-foreground">No hay salas disponibles. Contacta al administrador.</p>
+                      )}
+                      {salas?.map(sala => (
+                        <SelectItem key={sala.id} value={sala.adminId}>{sala.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
@@ -71,7 +99,7 @@ export default function VoterInboxLoginPage() {
               )}
             />
             <Button type="submit" className="w-full mt-4" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Ver mis encuestas
             </Button>
           </form>

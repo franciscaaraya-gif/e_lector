@@ -55,3 +55,9 @@ export type PollLookup = {
 export type AuthorizedAdmin = {
   email: string;
 };
+
+export type Sala = {
+  id: string;
+  name: string;
+  adminId: string;
+};
