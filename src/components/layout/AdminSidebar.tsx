@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, LogOut, Settings, Users } from "lucide-react";
-import { useAuth } from "@/firebase";
+import { BarChart2, LogOut, Settings, Users, UserCircle } from "lucide-react";
+import { useAuth, useUser } from "@/firebase";
 import { signOut } from "firebase/auth";
 
 import {
@@ -14,6 +14,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { ElectorIcon } from "@/components/icons";
 
@@ -21,12 +22,12 @@ export function AdminSidebar() {
   const pathname = usePathname();
   const auth = useAuth();
   const router = useRouter();
+  const { user } = useUser();
 
   const handleLogout = async () => {
     if (auth) {
       await signOut(auth);
-      // The layout will detect the user is logged out and redirect to /admin/login
-      router.push('/admin/login');
+      router.replace('/');
     }
   };
 
@@ -83,6 +84,15 @@ export function AdminSidebar() {
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter>
+        {user && (
+            <div className="flex flex-col gap-2 p-2 text-sm text-muted-foreground group-data-[collapsible=icon]:hidden">
+                <SidebarSeparator />
+                <div className="flex items-center gap-2 p-2">
+                    <UserCircle className="h-5 w-5 shrink-0" />
+                    <span className="truncate" title={user.email || ''}>{user.email}</span>
+                </div>
+            </div>
+        )}
          <SidebarMenu>
             <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout} tooltip="Cerrar Sesión">
