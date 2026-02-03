@@ -70,24 +70,23 @@ export default function VoterInboxLoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sala de Votación</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ''} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Selecciona una sala" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {salasLoading ? (
-                          <p className="p-4 text-sm text-muted-foreground text-center">Cargando salas...</p>
-                        ) : salas && salas.length > 0 ? (
-                          salas.map((sala) => (
-                            <SelectItem key={sala.id} value={sala.adminId}>
-                              {sala.name}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <p className="p-4 text-sm text-muted-foreground">No hay salas disponibles.</p>
+                        {salasLoading && <SelectItem value="loading" disabled>Cargando salas...</SelectItem>}
+                        {salasError && <SelectItem value="error" disabled>Error al cargar salas.</SelectItem>}
+                        {!salasLoading && !salasError && salas?.length === 0 && (
+                            <SelectItem value="no-salas" disabled>No hay salas disponibles.</SelectItem>
                         )}
+                        {salas?.map((sala) => (
+                          <SelectItem key={sala.id} value={sala.adminId}>
+                            {sala.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />
