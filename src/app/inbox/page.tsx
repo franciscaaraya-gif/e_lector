@@ -4,12 +4,11 @@ import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { collection } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
 
-import { useCollection, useFirestore, useMemoFirebase, useAuth, useUser } from '@/firebase';
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { Sala } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -27,23 +26,12 @@ export default function VoterInboxLoginPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const firestore = useFirestore();
-  const auth = useAuth();
-  const { user, isUserLoading: isAuthLoading } = useUser();
 
-  // Anonymous sign-in effect to allow reading the 'salas' collection
-  useEffect(() => {
-    if (!auth || isAuthLoading || user) return;
-    signInAnonymously(auth).catch((err) => {
-      // This is a background process, so we don't need to show a user-facing error.
-      // If permissions fail, the useCollection hook will catch it.
-    });
-  }, [auth, user, isAuthLoading]);
-
+  // The salas collection is public, so we don't need to sign in to read it.
   const salasQuery = useMemoFirebase(() => {
-    // Wait for user to be authenticated to run the query
-    if (!firestore || !user) return null;
+    if (!firestore) return null;
     return collection(firestore, 'salas');
-  }, [firestore, user]);
+  }, [firestore]);
   
   const { data: salas, isLoading: salasLoading } = useCollection<Sala>(salasQuery);
 
@@ -60,7 +48,7 @@ export default function VoterInboxLoginPage() {
     router.push(`/inbox/polls?salaId=${salaAdminId}&voterId=${voterId}`);
   }
 
-  const isLoading = salasLoading || isAuthLoading || isSubmitting;
+  const isLoading = salasLoading || isSubmitting;
 
   return (
     <Card className="shadow-lg">
