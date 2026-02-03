@@ -166,9 +166,10 @@
             "properties": {
               "id": { "type": "string", "description": "The unique identifier for the voter." },
               "nombre": { "type": "string", "description": "The first name of the voter." },
-              "apellido": { "type": "string", "description": "The last name of the voter." }
+              "apellido": { "type": "string", "description": "The last name of the voter." },
+              "enabled": { "type": "boolean", "description": "Indicates if the voter is active and can participate in polls." }
             },
-            "required": ["id", "nombre", "apellido"]
+            "required": ["id", "nombre", "apellido", "enabled"]
           }
         },
         "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the group was created." }

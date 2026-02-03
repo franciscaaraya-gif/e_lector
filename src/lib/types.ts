@@ -24,6 +24,7 @@ export type VoterInfo = {
   id: string;
   nombre: string;
   apellido: string;
+  enabled: boolean;
 };
 
 export type VoterGroup = {

@@ -37,6 +37,7 @@ type ParsedVoter = {
     id: string;
     nombre: string;
     apellido: string;
+    enabled: boolean;
 }
 
 export function CreateGroupDialog() {
@@ -84,6 +85,7 @@ export function CreateGroupDialog() {
                 id: String(row[0]).trim(),
                 apellido: String(row[1] || '').trim(),
                 nombre: String(row[2] || '').trim(),
+                enabled: true,
             }));
 
         if (voters.length === 0){

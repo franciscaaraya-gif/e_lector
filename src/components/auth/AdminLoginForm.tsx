@@ -60,6 +60,8 @@ export function AdminLoginForm() {
     
     setIsLoading(true);
     try {
+      // Clear any existing session to ensure this one is in-memory
+      await signOut(auth);
       await setPersistence(auth, inMemoryPersistence);
       await signInWithEmailAndPassword(auth, values.email, values.password);
       // The AdminLayout component will handle the redirection to the dashboard
@@ -91,6 +93,8 @@ export function AdminLoginForm() {
 
     setIsMicrosoftLoading(true);
     try {
+      // Clear any existing session to ensure this one is in-memory
+      await signOut(auth);
       await setPersistence(auth, inMemoryPersistence);
       const provider = new OAuthProvider('microsoft.com');
       const result = await signInWithPopup(auth, provider);

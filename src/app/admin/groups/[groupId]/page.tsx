@@ -3,18 +3,23 @@
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { VoterGroup } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import GroupDetailsLoading from './loading';
+import { Switch } from '@/components/ui/switch';
+import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+  const { toast } = useToast();
 
   const groupRef = useMemoFirebase(() => {
     if (!firestore || !user || !groupId) return null;
@@ -22,6 +27,34 @@ export default function GroupDetailsPage() {
   }, [firestore, user, groupId]);
 
   const { data: group, isLoading, error } = useDoc<VoterGroup>(groupRef);
+
+  const handleVoterStatusChange = async (voterId: string, newStatus: boolean) => {
+    if (!firestore || !user || !group || !groupRef) return;
+
+    const updatedVoters = group.voters.map(v =>
+        v.id === voterId ? { ...v, enabled: newStatus } : v
+    );
+
+    try {
+        await updateDoc(groupRef, { voters: updatedVoters });
+        toast({
+            title: "Estado del votante actualizado",
+        });
+    } catch (err: any) {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: groupRef.path,
+            operation: 'update',
+            requestResourceData: { voters: updatedVoters },
+        }));
+        toast({
+            variant: "destructive",
+            title: "Error al actualizar",
+            description: "No se pudo cambiar el estado del votante.",
+        });
+        // Optionally revert the switch in the UI
+    }
+  };
+
 
   if (isLoading || isUserLoading) {
     return <GroupDetailsLoading />;
@@ -68,6 +101,7 @@ export default function GroupDetailsPage() {
                 <TableHead>ID de Votante</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Apellido</TableHead>
+                <TableHead className="text-right">Estado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -76,11 +110,18 @@ export default function GroupDetailsPage() {
                   <TableCell className="font-mono text-xs">{voter.id}</TableCell>
                   <TableCell>{voter.nombre}</TableCell>
                   <TableCell>{voter.apellido}</TableCell>
+                  <TableCell className="text-right">
+                    <Switch
+                        checked={voter.enabled !== false}
+                        onCheckedChange={(checked) => handleVoterStatusChange(voter.id, checked)}
+                        aria-label={`Estado del votante ${voter.nombre}`}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
                {(group.voters || []).length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={3} className="h-24 text-center">
+                    <TableCell colSpan={4} className="h-24 text-center">
                         No hay votantes en este grupo.
                     </TableCell>
                 </TableRow>

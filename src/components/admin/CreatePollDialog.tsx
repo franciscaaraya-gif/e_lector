@@ -99,9 +99,15 @@ export function CreatePollDialog() {
 
     try {
         const selectedGroup = voterGroups.find(g => g.id === values.groupId);
-        if (!selectedGroup || !selectedGroup.voters || selectedGroup.voters.length === 0) {
+        if (!selectedGroup || !selectedGroup.voters) {
             setIsLoading(false);
-            return toast({ variant: 'destructive', title: 'Grupo inválido', description: 'El grupo seleccionado no tiene votantes.' });
+            return toast({ variant: 'destructive', title: 'Grupo inválido', description: 'El grupo seleccionado no existe o está vacío.' });
+        }
+
+        const enabledVoters = selectedGroup.voters.filter(v => v.enabled !== false);
+        if (enabledVoters.length === 0) {
+            setIsLoading(false);
+            return toast({ variant: 'destructive', title: 'Grupo sin votantes', description: 'El grupo seleccionado no tiene votantes habilitados.' });
         }
 
         const pollsCollection = collection(firestore, 'admins', user.uid, 'polls');
@@ -124,9 +130,9 @@ export function CreatePollDialog() {
         // 1. Set the poll document
         batch.set(newPollRef, newPollData);
         
-        // 2. Add all voters to the subcollection
+        // 2. Add all enabled voters to the subcollection
         const votersSubcollectionRef = collection(firestore, 'admins', user.uid, 'polls', newPollRef.id, 'voters');
-        selectedGroup.voters.forEach(voter => {
+        enabledVoters.forEach(voter => {
             const newVoterDocRef = doc(votersSubcollectionRef);
             batch.set(newVoterDocRef, {
                 voterId: voter.id,
@@ -145,7 +151,7 @@ export function CreatePollDialog() {
 
         toast({
             title: '¡Encuesta Creada!',
-            description: `La encuesta "${values.question}" ha sido creada y asignada al grupo "${selectedGroup.name}".`,
+            description: `La encuesta se asignó a ${enabledVoters.length} votantes del grupo "${selectedGroup.name}".`,
         });
 
         setOpen(false);
