@@ -67,19 +67,19 @@ export default function VoterInboxLoginPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Sala de Votación</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={isLoading}>
+                    <Select onValueChange={field.onChange} disabled={isLoading}>
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder={isLoading ? "Cargando salas..." : "Selecciona una sala"} />
+                          <SelectValue placeholder={salasLoading ? "Cargando salas..." : "Selecciona una sala"} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {!isLoading && salas?.length === 0 && (
-                          <p className="p-4 text-sm text-muted-foreground">No hay salas disponibles.</p>
-                        )}
                         {salas?.map(sala => (
                           <SelectItem key={sala.id} value={sala.adminId}>{sala.name}</SelectItem>
                         ))}
+                         {!salasLoading && (!salas || salas.length === 0) && (
+                          <p className="p-4 text-sm text-muted-foreground">No hay salas disponibles.</p>
+                        )}
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -106,39 +106,6 @@ export default function VoterInboxLoginPage() {
             </form>
           </Form>
         </CardContent>
-      </Card>
-      
-      {/* Panel de depuración */}
-      <Card className="mt-4">
-          <CardHeader>
-              <CardTitle>Estado de Depuración</CardTitle>
-              <CardDescription>
-                  Esta sección nos ayudará a ver qué está pasando con los datos de las salas.
-              </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-              <p>Cargando salas: <span className='font-mono'>{salasLoading ? 'Sí' : 'No'}</span></p>
-              {salasError && (
-                  <div>
-                      <p className="font-bold text-destructive">Error detectado:</p>
-                      <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 text-white text-xs overflow-auto">
-                          <code>{salasError.message}</code>
-                      </pre>
-                  </div>
-              )}
-              <p>Número de salas encontradas: <span className='font-mono'>{salas ? salas.length : '0'}</span></p>
-              {salas && salas.length > 0 && (
-                  <div>
-                      <p className="font-bold">Datos de las salas recibidos:</p>
-                      <pre className="mt-2 w-full rounded-md bg-slate-950 p-4 text-white text-xs overflow-auto">
-                          <code>{JSON.stringify(salas, null, 2)}</code>
-                      </pre>
-                  </div>
-              )}
-              {salas && salas.length === 0 && !salasLoading && (
-                  <p className="text-muted-foreground">La consulta a la base de datos fue exitosa, pero no se devolvió ninguna sala. Revisa que la colección 'salas' exista y tenga documentos.</p>
-              )}
-          </CardContent>
       </Card>
     </>
   );
