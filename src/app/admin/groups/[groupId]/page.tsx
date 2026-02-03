@@ -42,8 +42,6 @@ export default function GroupDetailsPage() {
         batch.update(groupRef, { voters: updatedVoters });
 
         // 2. Propagate change to all active polls that use this group.
-        // This approach fetches all polls and filters client-side to avoid
-        // requiring a composite index on Firestore, making it more robust.
         const pollsRef = collection(firestore, 'admins', user.uid, 'polls');
         const allPollsSnapshot = await getDocs(pollsRef);
         const activePollDocs = allPollsSnapshot.docs.filter(doc => {
@@ -51,12 +49,15 @@ export default function GroupDetailsPage() {
             return pollData.groupId === groupId && pollData.status === 'active';
         });
 
+        let updatedInPollsCount = 0;
+
         for (const pollDoc of activePollDocs) {
             const votersSubcollectionRef = collection(pollDoc.ref, 'voters');
             const voterInPollQuery = query(votersSubcollectionRef, where('voterId', '==', voterId), limit(1));
             const voterSnapshot = await getDocs(voterInPollQuery);
 
             if (!voterSnapshot.empty) {
+                updatedInPollsCount++;
                 const voterDocToUpdateRef = voterSnapshot.docs[0].ref;
                 batch.update(voterDocToUpdateRef, { enabled: newStatus });
             }
@@ -66,7 +67,7 @@ export default function GroupDetailsPage() {
 
         toast({
             title: "Estado del votante actualizado",
-            description: `El estado se actualizó en el grupo y en ${activePollDocs.length} encuesta(s) activa(s).`,
+            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${activePollDocs.length} encuesta(s) activa(s).`,
         });
     } catch (err: any) {
         let description = "No se pudo cambiar el estado del votante.";
