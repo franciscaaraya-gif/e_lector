@@ -41,12 +41,17 @@ export default function GroupDetailsPage() {
         // 1. Update the main group document
         batch.update(groupRef, { voters: updatedVoters });
 
-        // 2. Propagate change to all active polls that use this group
+        // 2. Propagate change to all active polls that use this group.
+        // This approach fetches all polls and filters client-side to avoid
+        // requiring a composite index on Firestore, making it more robust.
         const pollsRef = collection(firestore, 'admins', user.uid, 'polls');
-        const activePollsQuery = query(pollsRef, where('groupId', '==', groupId), where('status', '==', 'active'));
-        const activePollsSnapshot = await getDocs(activePollsQuery);
+        const allPollsSnapshot = await getDocs(pollsRef);
+        const activePollDocs = allPollsSnapshot.docs.filter(doc => {
+            const pollData = doc.data();
+            return pollData.groupId === groupId && pollData.status === 'active';
+        });
 
-        for (const pollDoc of activePollsSnapshot.docs) {
+        for (const pollDoc of activePollDocs) {
             const votersSubcollectionRef = collection(pollDoc.ref, 'voters');
             const voterInPollQuery = query(votersSubcollectionRef, where('voterId', '==', voterId), limit(1));
             const voterSnapshot = await getDocs(voterInPollQuery);
@@ -61,18 +66,25 @@ export default function GroupDetailsPage() {
 
         toast({
             title: "Estado del votante actualizado",
-            description: `El estado se actualizó en el grupo y en ${activePollsSnapshot.size} encuesta(s) activa(s).`,
+            description: `El estado se actualizó en el grupo y en ${activePollDocs.length} encuesta(s) activa(s).`,
         });
     } catch (err: any) {
+        let description = "No se pudo cambiar el estado del votante.";
+        // Check for missing Firestore index error, which can happen with complex queries
+        if (err.code === 'failed-precondition') {
+            description = "La base de datos requiere una configuración (índice) para esta operación. Revisa la consola del navegador para ver el enlace y crearlo.";
+        }
+        
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: groupRef.path,
             operation: 'update',
             requestResourceData: { voters: updatedVoters },
         }));
+
         toast({
             variant: "destructive",
             title: "Error al actualizar",
-            description: "No se pudo cambiar el estado del votante.",
+            description: description,
         });
         // Optionally revert the switch in the UI
     }
