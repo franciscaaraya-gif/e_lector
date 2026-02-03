@@ -72,7 +72,7 @@ export function AdminSidebar() {
               asChild
               tooltip="App de Listas"
             >
-              <Link href="#" target="_blank" rel="noopener noreferrer">
+              <Link href="https://studio-2564557381-68586.web.app/" target="_blank" rel="noopener noreferrer">
                 <ListChecks />
                 <span>App de Listas</span>
               </Link>

@@ -161,6 +161,51 @@ export function CreateGroupDialog() {
   }
   
   const handleImportFromApp = () => {
+    // --- PUNTO DE INTEGRACIÓN ---
+    // Aquí es donde conectarías con la API de tu "App de Listas".
+    // Deberías reemplazar los datos de ejemplo con una llamada `fetch` a tu API.
+    
+    /*
+    // EJEMPLO DE CÓMO PODRÍA SER LA LLAMADA A TU API:
+    const fetchVotersFromApi = async () => {
+        try {
+            // Reemplaza esta URL con el endpoint real de tu API
+            const response = await fetch('https://api.tu-app-de-listas.com/voters');
+            if (!response.ok) {
+                throw new Error('No se pudo conectar con la API');
+            }
+            const data = await response.json();
+
+            // Asegúrate de que los datos de la API tengan el formato correcto:
+            // { id: string, nombre: string, apellido: string }
+            const formattedVoters = data.map(voter => ({
+                id: voter.id,
+                nombre: voter.firstName, // ajusta los nombres de los campos
+                apellido: voter.lastName, // ajusta los nombres de los campos
+                enabled: true,
+            }));
+            
+            setParsedVoters(formattedVoters);
+            setFileName('Importado desde la API');
+            toast({
+                title: '¡Lista importada!',
+                description: `Se han cargado ${'${formattedVoters.length}'} votantes.`,
+            });
+
+        } catch (error) {
+            console.error("Error al importar desde la API:", error);
+            toast({
+                variant: 'destructive',
+                title: 'Error de importación',
+                description: 'No se pudo obtener la lista desde la API.',
+            });
+        }
+    };
+    
+    fetchVotersFromApi();
+    */
+
+    // --- SIMULACIÓN ACTUAL (REEMPLAZAR CON LA LÓGICA DE ARRIBA) ---
     toast({
         title: 'Simulación de Importación',
         description: 'En un caso real, esto conectaría a tu app. Se han cargado datos de ejemplo.',
@@ -172,7 +217,6 @@ export function CreateGroupDialog() {
     ];
     setParsedVoters(exampleVoters);
     setFileName('Importado desde la App de Listas');
-    // We don't need to switch tabs, the preview is now shared
   };
 
 
