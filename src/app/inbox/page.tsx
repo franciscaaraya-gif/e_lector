@@ -18,7 +18,6 @@ export default function VoterInboxLoginPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Usamos estado local simple en lugar de react-hook-form para evitar conflictos
   const [salaAdminId, setSalaAdminId] = useState('');
   const [voterId, setVoterId] = useState('');
   const [showError, setShowError] = useState(false);
@@ -69,7 +68,7 @@ export default function VoterInboxLoginPage() {
                   )}
                   {salas?.map((sala) => (
                     <SelectItem key={sala.id} value={sala.adminId}>
-                      {sala.name}
+                      {sala.name || sala.adminId}
                     </SelectItem>
                   ))}
                 </SelectContent>
