@@ -105,11 +105,13 @@ export function CreateGroupDialog() {
         // --- GUÍA DE CONFIGURACIÓN ---
         // Pega aquí la configuración de Firebase de tu "App de Listas".
         // La encuentras en la Consola de Firebase > Configuración del Proyecto.
-        // Reemplaza los valores de ejemplo con los tuyos.
         const secondaryFirebaseConfig = {
             apiKey: "TU_API_KEY_AQUI",
-            authDomain: "TU_AUTH_DOMAIN_AQUI",
-            projectId: "TU_PROJECT_ID_AQUI",
+            authDomain: "TU_PROJECT_ID.firebaseapp.com",
+            projectId: "TU_PROJECT_ID",
+            storageBucket: "TU_PROJECT_ID.appspot.com",
+            messagingSenderId: "TU_MESSAGING_SENDER_ID",
+            appId: "TU_APP_ID"
         };
         // -----------------------------
 
@@ -395,5 +397,3 @@ export function CreateGroupDialog() {
     </Dialog>
   );
 }
-
-    
