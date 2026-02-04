@@ -5,8 +5,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import * as XLSX from 'xlsx';
-import { addDoc, collection, serverTimestamp, getDocs, query, orderBy, where, type Firestore } from 'firebase/firestore';
-import { initializeApp, getApp, type FirebaseApp } from 'firebase/app';
+import { addDoc, collection, serverTimestamp, getDocs, query, orderBy, where, type Firestore, doc } from 'firebase/firestore';
+import { initializeApp, getApp, type FirebaseApp, deleteApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 import { FileUp, Loader2, PlusCircle, Trash2, Import, Link2 } from 'lucide-react';
 
@@ -46,11 +46,9 @@ type ParsedVoter = {
 }
 
 type Llamado = {
-    key: string;
+    id: string;
+    nombre: string;
     fecha: any;
-    clave: string;
-    maquina: string;
-    direccion: string;
 };
 
 export function CreateGroupDialog() {
@@ -63,13 +61,13 @@ export function CreateGroupDialog() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  // State for direct import
-  const [secondaryFirestore, setSecondaryFirestore] = useState<Firestore | null>(null);
+  const [secondaryApp, setSecondaryApp] = useState<FirebaseApp | null>(null);
+  const [secondaryDb, setSecondaryDb] = useState<Firestore | null>(null);
   const [connectError, setConnectError] = useState('');
   const [otherConfig, setOtherConfig] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [llamados, setLlamados] = useState<Llamado[]>([]);
-  const [selectedLlamadoKey, setSelectedLlamadoKey] = useState('');
+  const [selectedLlamadoId, setSelectedLlamadoId] = useState('');
   const [isImporting, setIsImporting] = useState(false);
 
 
@@ -78,19 +76,27 @@ export function CreateGroupDialog() {
     defaultValues: { name: '' },
   });
 
-  const resetState = () => {
+  const resetState = async () => {
     form.reset();
     setIsLoading(false);
     setIsDragging(false);
     setFileName('');
     setParsedVoters([]);
-    // Reset import state
-    setSecondaryFirestore(null);
+    
+    if (secondaryApp) {
+        try {
+            await deleteApp(secondaryApp);
+        } catch (e) {
+            console.error("Error al limpiar la app secundaria:", e);
+        }
+    }
+    setSecondaryApp(null);
+    setSecondaryDb(null);
     setConnectError('');
     setOtherConfig('');
     setIsConnecting(false);
     setLlamados([]);
-    setSelectedLlamadoKey('');
+    setSelectedLlamadoId('');
     setIsImporting(false);
   };
 
@@ -111,9 +117,10 @@ export function CreateGroupDialog() {
 
         const voters = rows
             .map(row => {
-                const idKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('id'));
-                const apellidoKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('apellido'));
-                const nombreKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('nombre'));
+                // Find keys case-insensitively
+                const idKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'id');
+                const apellidoKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'apellido');
+                const nombreKey = Object.keys(row).find(k => k.toLowerCase().trim() === 'nombre');
 
                 if (!idKey || !row[idKey]) return null;
 
@@ -127,7 +134,7 @@ export function CreateGroupDialog() {
 
 
         if (voters.length === 0){
-            toast({ variant: 'destructive', title: 'Archivo no válido', description: "No se encontraron votantes. Asegúrate de que el archivo tenga una fila de cabecera y datos válidos."});
+            toast({ variant: 'destructive', title: 'Archivo no válido', description: "No se encontraron votantes. Asegúrate de que el archivo tenga una fila de cabecera con columnas llamadas 'id', 'apellido' y 'nombre'."});
             setFileName('');
             return;
         }
@@ -159,43 +166,42 @@ export function CreateGroupDialog() {
 
     let config;
     try {
-        config = (new Function(`return ${otherConfig}`))();
+        config = JSON.parse(otherConfig);
         if (!config.apiKey || !config.projectId) {
             throw new Error("El objeto de configuración no es válido. Faltan 'apiKey' o 'projectId'.");
         }
     } catch (e) {
-        setConnectError("La configuración de Firebase no es un objeto JavaScript válido.");
+        setConnectError("La configuración de Firebase no es un objeto JSON válido.");
         setIsConnecting(false);
         return;
     }
 
     try {
-        let secondaryApp: FirebaseApp;
+        let appInstance: FirebaseApp;
         try {
-            secondaryApp = getApp('import-app');
+            appInstance = getApp('import-app');
+            await deleteApp(appInstance);
         } catch (e) {
-            secondaryApp = initializeApp(config, 'import-app');
+            // App doesn't exist, safe to ignore
         }
-        const db = getFirestore(secondaryApp);
-        setSecondaryFirestore(db);
+        
+        appInstance = initializeApp(config, 'import-app');
+        const db = getFirestore(appInstance);
+        setSecondaryApp(appInstance);
+        setSecondaryDb(db);
 
-        // Fetch Llamados (API 1)
         const callsCol = collection(db, 'llamados');
         const q = query(callsCol, orderBy('fecha', 'desc'));
         const snapshot = await getDocs(q);
 
-        const callsMap = new Map<string, Llamado>();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            const key = `${data.fecha}-${data.clave}-${data.maquina}-${data.direccion}`;
-            if (!callsMap.has(key)) {
-                callsMap.set(key, { key, fecha: data.fecha, clave: data.clave, maquina: data.maquina, direccion: data.direccion });
-            }
-        });
+        const loadedLlamados = snapshot.docs.map(doc => ({
+            id: doc.id,
+            nombre: doc.data().nombre || `Llamado del ${new Date(doc.data().fecha.seconds * 1000).toLocaleDateString()}`,
+            fecha: doc.data().fecha,
+        }));
         
-        const callsArray = Array.from(callsMap.values());
-        setLlamados(callsArray);
-        toast({ title: "Conexión exitosa", description: `Se encontraron ${callsArray.length} llamados únicos.`});
+        setLlamados(loadedLlamados);
+        toast({ title: "Conexión exitosa", description: `Se encontraron ${loadedLlamados.length} llamados.`});
 
     } catch (error: any) {
         setConnectError(`Error al conectar o leer datos: ${error.message}`);
@@ -205,48 +211,46 @@ export function CreateGroupDialog() {
   }
 
   const handleImportFromLlamado = async () => {
-      if (!secondaryFirestore || !selectedLlamadoKey) return;
-
-      const llamado = llamados.find(l => l.key === selectedLlamadoKey);
-      if (!llamado) return;
+      if (!secondaryDb || !selectedLlamadoId) return;
 
       setIsImporting(true);
       setParsedVoters([]);
       try {
-        // Find volunteer IDs (API 2 part 1)
-        const llamadosCol = collection(secondaryFirestore, 'llamados');
-        const qLlamados = query(llamadosCol,
-            where('fecha', '==', llamado.fecha),
-            where('clave', '==', llamado.clave),
-            where('maquina', '==', llamado.maquina),
-            where('direccion', '==', llamado.direccion)
-        );
-        const llamadosSnap = await getDocs(qLlamados);
-        const volunteerIds = llamadosSnap.docs.map(doc => doc.data().voluntarioId).filter(id => id);
+        const llamadoDocRef = doc(secondaryDb, "llamados", selectedLlamadoId);
+        const llamadoDoc = await getDoc(llamadoDocRef);
 
-        if (volunteerIds.length === 0) {
+        if (!llamadoDoc.exists()) {
+             throw new Error("El llamado seleccionado ya no existe.");
+        }
+        
+        const volunteerIds = llamadoDoc.data().voluntarios;
+        if (!Array.isArray(volunteerIds) || volunteerIds.length === 0) {
             toast({ title: "No se encontraron voluntarios", description: "Este llamado no tiene voluntarios asociados." });
             setIsImporting(false);
             return;
         }
 
-        // Fetch volunteer details (API 2 part 2)
         const volunteersData: ParsedVoter[] = [];
-        const volunteersCol = collection(secondaryFirestore, 'voluntarios');
+        const volunteersCol = collection(secondaryDb, 'voluntarios');
         
         for (let i = 0; i < volunteerIds.length; i += 30) {
             const chunk = volunteerIds.slice(i, i + 30);
-            const qVoluntarios = query(volunteersCol, where(document.Id, 'in', chunk));
+            const qVoluntarios = query(volunteersCol, where('__name__', 'in', chunk));
             const voluntariosSnap = await getDocs(qVoluntarios);
             
             voluntariosSnap.forEach(doc => {
                 const data = doc.data();
-                volunteersData.push({ id: doc.id, nombre: data.nombre || '', apellido: data.apellido || '', enabled: true });
+                volunteersData.push({ 
+                    id: doc.id, 
+                    nombre: data.nombre || data.firstName || '', 
+                    apellido: data.apellido || data.lastName || '', 
+                    enabled: true 
+                });
             });
         }
 
         setParsedVoters(volunteersData);
-        setFileName(`Importado de: Llamado del ${llamado.fecha}`);
+        setFileName(`Importado de llamado: ${llamados.find(l => l.id === selectedLlamadoId)?.nombre}`);
         toast({ title: "Voluntarios importados", description: `Se han cargado ${volunteersData.length} voluntarios.` });
 
       } catch (error: any) {
@@ -296,7 +300,7 @@ export function CreateGroupDialog() {
             <Tabs defaultValue="upload" className="w-full">
                 <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="upload"><FileUp className="mr-2 h-4 w-4"/>Subir Archivo</TabsTrigger>
-                    <TabsTrigger value="import"><Import className="mr-2 h-4 w-4"/>Importar de App</TabsTrigger>
+                    <TabsTrigger value="import"><Import className="mr-2 h-4 w-4"/>Importar de App de Listas</TabsTrigger>
                 </TabsList>
                 <TabsContent value="upload" className="pt-4">
                     <FormItem>
@@ -307,16 +311,16 @@ export function CreateGroupDialog() {
                             <Input id="file-upload" type="file" className="hidden" accept=".xlsx, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileChange} disabled={isLoading}/>
                         </div>
                         <FormDescription className="pt-2">
-                            Asegúrate de que tu archivo tenga una fila de cabecera. El sistema buscará columnas que contengan 'id', 'apellido' y 'nombre' para mapear los datos.
+                            Asegúrate de que tu archivo tenga una fila de cabecera. El sistema buscará automáticamente columnas que contengan 'id', 'apellido' y 'nombre' (sin importar mayúsculas/minúsculas).
                         </FormDescription>
                     </FormItem>
                 </TabsContent>
                 <TabsContent value="import" className="pt-4 space-y-4">
                     <FormItem>
                         <FormLabel>1. Conectar con la App de Listas</FormLabel>
-                         <FormDescription>Pega la configuración de Firebase de tu otra aplicación para permitir una conexión de solo lectura segura.</FormDescription>
+                         <FormDescription>Pega aquí el objeto de configuración de Firebase de tu "App de Listas". Lo encuentras en la Consola de Firebase &gt; Configuración del Proyecto &gt; Tus Apps &gt; Config. Esto permite una conexión temporal y segura de solo lectura.</FormDescription>
                         <Textarea 
-                            placeholder={'const firebaseConfig = {\n  apiKey: "AIza...",\n  authDomain: "...",\n  projectId: "..."\n};'}
+                            placeholder={'{\n  "apiKey": "AIza...",\n  "authDomain": "...",\n  "projectId": "..."\n}'}
                             value={otherConfig}
                             onChange={(e) => setOtherConfig(e.target.value)}
                             rows={6}
@@ -335,8 +339,8 @@ export function CreateGroupDialog() {
                         <div className="space-y-4 pt-4 border-t">
                             <FormItem>
                                 <FormLabel>2. Seleccionar Llamado e Importar</FormLabel>
-                                <FormDescription>Elige uno de los llamados únicos encontrados en tu otra aplicación.</FormDescription>
-                                <Select onValueChange={setSelectedLlamadoKey} value={selectedLlamadoKey} disabled={isImporting}>
+                                <FormDescription>Elige uno de los llamados encontrados en tu otra aplicación.</FormDescription>
+                                <Select onValueChange={setSelectedLlamadoId} value={selectedLlamadoId} disabled={isImporting}>
                                     <FormControl>
                                     <SelectTrigger>
                                         <SelectValue placeholder="Selecciona un llamado..." />
@@ -344,14 +348,14 @@ export function CreateGroupDialog() {
                                     </FormControl>
                                     <SelectContent>
                                     {llamados.map((l) => (
-                                        <SelectItem key={l.key} value={l.key}>
-                                           Llamado del {new Date(l.fecha).toLocaleDateString()} en {l.direccion}
+                                        <SelectItem key={l.id} value={l.id}>
+                                           {l.nombre}
                                         </SelectItem>
                                     ))}
                                     </SelectContent>
                                 </Select>
                             </FormItem>
-                            <Button type="button" onClick={handleImportFromLlamado} disabled={isImporting || !selectedLlamadoKey}>
+                            <Button type="button" onClick={handleImportFromLlamado} disabled={isImporting || !selectedLlamadoId}>
                                 {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Import className="mr-2 h-4 w-4" />}
                                 Importar Voluntarios del Llamado
                             </Button>
@@ -382,7 +386,7 @@ export function CreateGroupDialog() {
             )}
 
             <DialogFooter className="pt-4">
-              <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading}>Cancelar</Button>
+              <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetState(); }} disabled={isLoading}>Cancelar</Button>
               <Button type="submit" disabled={isLoading || parsedVoters.length === 0}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Crear Grupo
