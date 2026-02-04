@@ -280,7 +280,11 @@ export function CreateGroupDialog() {
         const chunk = volunteerIds.slice(i, i + 30);
         if (chunk.length === 0) continue;
 
-        const qVols = query(volunteersCol, where(doc(volunteersCol, '__name__').path, 'in', chunk));
+        const qVols = query(
+          volunteersCol,
+          where('__name__', 'in', chunk)
+        );
+        
         const volSnap = await getDocs(qVols);
   
         volSnap.forEach(docSnap => {
