@@ -139,7 +139,11 @@ export function CreateGroupDialog() {
             const loadedLlamados = Object.values(
               snapshot.docs.reduce((acc, doc) => {
                 const data = doc.data();
-                const fechaString = data.fecha ? new Date(data.fecha.seconds * 1000).toLocaleDateString() : 'Invalid Date';
+                if (!data) return acc;
+
+                const fecha = data.fecha?.seconds ? new Date(data.fecha.seconds * 1000) : null;
+                const fechaString = fecha ? fecha.toLocaleDateString() : 'Fecha inválida';
+                
                 const key = `${fechaString}|${data.clave}|${data.direccion}|${data.maquina}`;
             
                 if (acc[key] || !data.clave || !data.direccion || !data.maquina) return acc;
@@ -271,18 +275,19 @@ export function CreateGroupDialog() {
       const volunteers: ParsedVoter[] = [];
       const volunteersCol = collection(secondaryDb, 'voluntarios');
   
+      // Firestore 'in' query is limited to 30 elements in the array.
       for (let i = 0; i < volunteerIds.length; i += 30) {
         const chunk = volunteerIds.slice(i, i + 30);
         if (chunk.length === 0) continue;
 
-        const qVols = query(volunteersCol, where('__name__', 'in', chunk));
+        const qVols = query(volunteersCol, where(doc(volunteersCol, '__name__').path, 'in', chunk));
         const volSnap = await getDocs(qVols);
   
-        volSnap.forEach(doc => {
-          const v = doc.data();
+        volSnap.forEach(docSnap => {
+          const v = docSnap.data();
           if (v) {
             volunteers.push({
-                id: v.regNacional || doc.id,
+                id: v.regNacional || docSnap.id,
                 nombre: v.nombre || '',
                 apellido: v.apellidos || '',
                 enabled: true,
@@ -334,14 +339,14 @@ export function CreateGroupDialog() {
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Crear Grupo</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Crear Nuevo Grupo</DialogTitle>
           <DialogDescription>Crea un grupo de votantes subiendo un archivo o importándolo desde tu App de Listas.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-4 pr-4 max-h-[65vh] overflow-y-auto">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 min-h-0 flex flex-col">
+            <div className="space-y-4 pr-1 flex-1 min-h-0 overflow-y-auto">
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Nombre del Grupo</FormLabel><FormControl><Input placeholder="Ej: Voluntarios de la campaña" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                 )}/>
@@ -365,14 +370,6 @@ export function CreateGroupDialog() {
                         </FormItem>
                     </TabsContent>
                      <TabsContent value="import" className="pt-4 space-y-4">
-                        <Alert>
-                            <Info className="h-4 w-4" />
-                            <AlertTitle>Conexión Automática</AlertTitle>
-                            <AlertDescription>
-                               Esta función se conecta automáticamente a tu "App de Listas". Si no funciona, asegúrate de haber añadido la configuración de Firebase de tu otra app en el archivo <code className="font-mono text-xs bg-muted px-1 py-0.5 rounded">src/components/admin/CreateGroupDialog.tsx</code>.
-                            </AlertDescription>
-                        </Alert>
-
                         {isLoadingLlamados && (
                             <div className="flex items-center gap-2 text-muted-foreground">
                                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -428,7 +425,7 @@ export function CreateGroupDialog() {
                 )}
             </div>
 
-            <DialogFooter className="pt-4 border-t mt-4">
+            <DialogFooter className="pt-4 border-t">
               <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetState(); }} disabled={isLoading}>Cancelar</Button>
               <Button type="submit" disabled={isLoading || parsedVoters.length === 0}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
