@@ -170,10 +170,10 @@ export default function PollDetailsPage() {
   const [isQrModalOpen, setQrModalOpen] = useState(false);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setPollUrl(`${window.location.origin}/vote/${pollId}`);
+    if (typeof window !== 'undefined' && user) {
+      setPollUrl(`${window.location.origin}/inbox?salaId=${user.uid}`);
     }
-  }, [pollId]);
+  }, [user]);
   
   const pollRef = useMemoFirebase(() => {
     if (!firestore || !user || !pollId) return null;
@@ -197,6 +197,7 @@ export default function PollDetailsPage() {
   const { data: votersStatus, isLoading: votersStatusLoading, error: votersStatusError } = useCollection<VoterStatus>(votersStatusRef);
 
   const copyPollUrl = () => {
+    if (!pollUrl) return;
     navigator.clipboard.writeText(pollUrl);
     toast({ title: 'Enlace de la encuesta copiado!' });
   };
@@ -320,7 +321,7 @@ export default function PollDetailsPage() {
                   </DialogContent>
                 </Dialog>
                 <div className='flex flex-col gap-2 w-full sm:w-auto'>
-                    <Button onClick={copyPollUrl} className="w-full">
+                    <Button onClick={copyPollUrl} className="w-full" disabled={!pollUrl}>
                         <LinkIcon className="mr-2 h-4 w-4" />
                         Copiar Enlace General
                     </Button>
