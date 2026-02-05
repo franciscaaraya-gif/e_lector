@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore'
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, Users } from 'lucide-react';
+import { MoreHorizontal, Users, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -68,6 +68,7 @@ function PollsList() {
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -89,6 +90,8 @@ function PollsList() {
 
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
+    
+    setIsDeleting(true);
 
     const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDelete.id);
     const lookupRef = doc(firestore, 'poll-lookup', pollToDelete.id);
@@ -115,6 +118,7 @@ function PollsList() {
              description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
         })
     } finally {
+        setIsDeleting(false);
         setIsAlertOpen(false);
         setPollToDelete(null);
     }
@@ -233,8 +237,13 @@ function PollsList() {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteConfirm} className={buttonVariants({ variant: "destructive" })}>
+                <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleDeleteConfirm} 
+                  className={buttonVariants({ variant: "destructive" })}
+                  disabled={isDeleting}
+                >
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Eliminar Permanentemente
                 </AlertDialogAction>
             </AlertDialogFooter>
