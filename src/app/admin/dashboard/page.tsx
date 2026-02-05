@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { MoreHorizontal, Users, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, VoterGroup } from '@/lib/types';
@@ -75,8 +75,6 @@ function PollsList({
 }) {
 
   if (isLoading) {
-    // Muestra el esqueleto de carga mientras se obtienen los datos
-    // Coincide con el `loading.tsx` para una transición suave.
     return (
       <>
         <div className="md:hidden space-y-4">
@@ -180,55 +178,26 @@ function PollsList({
 }
 
 
-function DashboardContents({ 
-    onDeleteClick 
-}: { 
-    onDeleteClick: (poll: Poll) => void 
-}) {
-    const firestore = useFirestore();
-    const { user } = useUser();
-
-    const pollsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
-    }, [firestore, user]);
-
-    const groupsQuery = useMemoFirebase(() => {
-        if (!firestore || !user) return null;
-        return query(collection(firestore, 'admins', user.uid, 'groups'));
-    }, [firestore, user]);
-
-    const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
-    const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
-
-    return (
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <CardTitle>Tus Encuestas</CardTitle>
-                    <CreatePollDialog />
-                </div>
-            </CardHeader>
-            <CardContent>
-                <PollsList
-                    polls={polls}
-                    isLoading={pollsLoading || groupsLoading}
-                    groups={groups}
-                    onDeleteClick={onDeleteClick}
-                />
-            </CardContent>
-        </Card>
-    );
-}
-
-
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const pollsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
+    }, [firestore, user]);
+
+  const groupsQuery = useMemoFirebase(() => {
+      if (!firestore || !user) return null;
+      return query(collection(firestore, 'admins', user.uid, 'groups'));
+  }, [firestore, user]);
+
+  const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
+  const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
+
 
   const handleDeleteClick = (poll: Poll) => {
     setPollToDelete(poll);
@@ -238,10 +207,20 @@ export default function DashboardPage() {
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
     
-    setIsDeleting(true);
+    // Copy data needed for toasts/logic before state is cleared
+    const pollToDeleteCopy = { ...pollToDelete };
 
-    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDelete.id);
-    const lookupRef = doc(firestore, 'poll-lookup', pollToDelete.id);
+    // Close the dialog UI *before* the async operation.
+    // This allows Radix to start its exit animation without being interrupted by the data re-fetch.
+    setIsAlertOpen(false);
+
+    toast({
+        title: "Eliminando encuesta...",
+        description: `Por favor, espera un momento.`,
+    });
+
+    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDeleteCopy.id);
+    const lookupRef = doc(firestore, 'poll-lookup', pollToDeleteCopy.id);
 
     try {
         const batch = writeBatch(firestore);
@@ -250,8 +229,8 @@ export default function DashboardPage() {
         await batch.commit();
 
         toast({
-            title: "Encuesta Eliminada",
-            description: `La encuesta "${pollToDelete.question}" ha sido eliminada.`,
+            title: "¡Encuesta Eliminada!",
+            description: `La encuesta "${pollToDeleteCopy.question}" se eliminó correctamente.`,
         });
     } catch(error: any) {
         const permissionError = new FirestorePermissionError({
@@ -265,9 +244,8 @@ export default function DashboardPage() {
              description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
         })
     } finally {
-        setIsDeleting(false);
-        setIsAlertOpen(false);
-        setPollToDelete(null);
+       // Clean up state after operation is complete.
+       setPollToDelete(null);
     }
   };
 
@@ -279,7 +257,22 @@ export default function DashboardPage() {
         <CardDescription>Crea y administra tus encuestas de votación anónima.</CardDescription>
       </CardHeader>
       
-      <DashboardContents onDeleteClick={handleDeleteClick} />
+      <Card>
+          <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                  <CardTitle>Tus Encuestas</CardTitle>
+                  <CreatePollDialog />
+              </div>
+          </CardHeader>
+          <CardContent>
+              <PollsList
+                  polls={polls}
+                  isLoading={pollsLoading || groupsLoading}
+                  groups={groups}
+                  onDeleteClick={handleDeleteClick}
+              />
+          </CardContent>
+      </Card>
 
        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
@@ -292,13 +285,11 @@ export default function DashboardPage() {
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-                <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction 
                   onClick={handleDeleteConfirm} 
                   className={buttonVariants({ variant: "destructive" })}
-                  disabled={isDeleting}
                 >
-                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Eliminar Permanentemente
                 </AlertDialogAction>
             </AlertDialogFooter>
