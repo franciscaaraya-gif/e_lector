@@ -62,24 +62,19 @@ function PollCard({ poll }: { poll: Poll }) {
   );
 }
 
-function PollsList({ onDeleteClick }: { onDeleteClick: (poll: Poll) => void }) {
-  const firestore = useFirestore();
-  const { user } = useUser();
+function PollsList({ 
+  polls, 
+  isLoading,
+  groups,
+  onDeleteClick 
+}: { 
+  polls: Poll[] | null, 
+  isLoading: boolean,
+  groups: VoterGroup[] | null,
+  onDeleteClick: (poll: Poll) => void 
+}) {
 
-  const pollsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
-
-  const groupsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'admins', user.uid, 'groups'));
-  }, [firestore, user]);
-
-  const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
-  const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
-
-  if (pollsLoading || groupsLoading) {
+  if (isLoading) {
     // Muestra el esqueleto de carga mientras se obtienen los datos
     // Coincide con el `loading.tsx` para una transición suave.
     return (
@@ -192,6 +187,20 @@ export default function DashboardPage() {
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Data fetching lifted to the parent component
+  const pollsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
+
+  const groupsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'admins', user.uid, 'groups'));
+  }, [firestore, user]);
+
+  const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
+  const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
+
   const handleDeleteClick = (poll: Poll) => {
     setPollToDelete(poll);
     setIsAlertOpen(true);
@@ -248,7 +257,12 @@ export default function DashboardPage() {
           </div>
         </CardHeader>
         <CardContent>
-          <PollsList onDeleteClick={handleDeleteClick} />
+          <PollsList 
+            polls={polls}
+            isLoading={pollsLoading || groupsLoading}
+            groups={groups}
+            onDeleteClick={handleDeleteClick} 
+          />
         </CardContent>
       </Card>
        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
