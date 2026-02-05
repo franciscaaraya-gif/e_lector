@@ -62,13 +62,9 @@ function PollCard({ poll }: { poll: Poll }) {
   );
 }
 
-function PollsList() {
+function PollsList({ onDeleteClick }: { onDeleteClick: (poll: Poll) => void }) {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { toast } = useToast();
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const pollsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -82,48 +78,6 @@ function PollsList() {
 
   const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
   const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
-
-  const handleDeleteClick = (poll: Poll) => {
-    setPollToDelete(poll);
-    setIsAlertOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!pollToDelete || !firestore || !user) return;
-    
-    setIsDeleting(true);
-
-    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDelete.id);
-    const lookupRef = doc(firestore, 'poll-lookup', pollToDelete.id);
-
-    try {
-        const batch = writeBatch(firestore);
-        batch.delete(pollRef);
-        batch.delete(lookupRef);
-        await batch.commit();
-
-        toast({
-            title: "Encuesta Eliminada",
-            description: `La encuesta "${pollToDelete.question}" ha sido eliminada.`,
-        });
-    } catch(error: any) {
-        const permissionError = new FirestorePermissionError({
-            path: pollRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        toast({
-             variant: "destructive",
-             title: "Error al eliminar",
-             description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
-        })
-    } finally {
-        setIsDeleting(false);
-        setIsAlertOpen(false);
-        setPollToDelete(null);
-    }
-  };
-
 
   if (pollsLoading || groupsLoading) {
     // Muestra el esqueleto de carga mientras se obtienen los datos
@@ -214,7 +168,7 @@ function PollsList() {
                       <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() => handleDeleteClick(poll)}
+                        onClick={() => onDeleteClick(poll)}
                       >
                         Eliminar
                       </DropdownMenuItem>
@@ -226,7 +180,78 @@ function PollsList() {
           </TableBody>
         </Table>
       </div>
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+    </>
+  );
+}
+
+export default function DashboardPage() {
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const handleDeleteClick = (poll: Poll) => {
+    setPollToDelete(poll);
+    setIsAlertOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!pollToDelete || !firestore || !user) return;
+    
+    setIsDeleting(true);
+
+    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDelete.id);
+    const lookupRef = doc(firestore, 'poll-lookup', pollToDelete.id);
+
+    try {
+        const batch = writeBatch(firestore);
+        batch.delete(pollRef);
+        batch.delete(lookupRef);
+        await batch.commit();
+
+        toast({
+            title: "Encuesta Eliminada",
+            description: `La encuesta "${pollToDelete.question}" ha sido eliminada.`,
+        });
+    } catch(error: any) {
+        const permissionError = new FirestorePermissionError({
+            path: pollRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({
+             variant: "destructive",
+             title: "Error al eliminar",
+             description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
+        })
+    } finally {
+        setIsDeleting(false);
+        setIsAlertOpen(false);
+        setPollToDelete(null);
+    }
+  };
+
+
+  return (
+    <div className="space-y-6">
+      <CardHeader className="p-0">
+        <CardTitle className="text-3xl font-bold tracking-tight font-headline">Encuestas</CardTitle>
+        <CardDescription>Crea y administra tus encuestas de votación anónima.</CardDescription>
+      </CardHeader>
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <CardTitle>Tus Encuestas</CardTitle>
+            <CreatePollDialog />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <PollsList onDeleteClick={handleDeleteClick} />
+        </CardContent>
+      </Card>
+       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
@@ -249,28 +274,6 @@ function PollsList() {
             </AlertDialogFooter>
         </AlertDialogContent>
     </AlertDialog>
-    </>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <div className="space-y-6">
-      <CardHeader className="p-0">
-        <CardTitle className="text-3xl font-bold tracking-tight font-headline">Encuestas</CardTitle>
-        <CardDescription>Crea y administra tus encuestas de votación anónima.</CardDescription>
-      </CardHeader>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <CardTitle>Tus Encuestas</CardTitle>
-            <CreatePollDialog />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <PollsList />
-        </CardContent>
-      </Card>
     </div>
   );
 }
