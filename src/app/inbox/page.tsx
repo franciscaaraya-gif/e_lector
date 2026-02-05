@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Suspense, useEffect } from 'react';
+import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const formSchema = z.object({
@@ -42,19 +42,10 @@ function VoterInboxForm() {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
-        salaId: '',
-        voterId: '',
+            salaId: preselectedSalaId || '',
+            voterId: '',
         },
     });
-
-    const { setValue } = form;
-
-    useEffect(() => {
-        if (preselectedSalaId && salas) {
-            setValue('salaId', preselectedSalaId);
-        }
-    }, [preselectedSalaId, salas, setValue]);
-
 
     const {
         formState: { isSubmitting },
@@ -102,6 +93,7 @@ function VoterInboxForm() {
                         <Select
                             value={field.value}
                             onValueChange={field.onChange}
+                            defaultValue={preselectedSalaId || ""}
                         >
                             <FormControl>
                             <SelectTrigger>
