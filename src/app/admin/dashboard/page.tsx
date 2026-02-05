@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore'
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, Users, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Users, PlusCircle } from 'lucide-react';
 import { useState, useMemo } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -41,12 +41,33 @@ const statusText: { [key: string]: string } = {
   closed: 'Cerrada',
 };
 
-function PollCard({ poll }: { poll: Poll }) {
+function PollCard({ poll, onDeleteClick }: { poll: Poll, onDeleteClick: (poll: Poll) => void }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="truncate">{poll.question}</CardTitle>
-        <Badge variant={statusVariant[poll.status] || 'secondary'} className="w-fit">{statusText[poll.status] || poll.status}</Badge>
+      <CardHeader className='pb-4'>
+        <div className="flex justify-between items-start gap-2">
+            <div className='flex-1 space-y-2 min-w-0'>
+                <CardTitle className="truncate">{poll.question}</CardTitle>
+                <Badge variant={statusVariant[poll.status] || 'secondary'} className="w-fit">{statusText[poll.status] || poll.status}</Badge>
+            </div>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 w-8 p-0 flex-shrink-0">
+                    <span className="sr-only">Abrir menu</span>
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    onClick={() => onDeleteClick(poll)}
+                  >
+                    Eliminar
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent>
         <p className="text-sm text-muted-foreground">
@@ -62,127 +83,13 @@ function PollCard({ poll }: { poll: Poll }) {
   );
 }
 
-function PollsList({ 
-  polls, 
-  isLoading,
-  groups,
-  onDeleteClick 
-}: { 
-  polls: Poll[] | null, 
-  isLoading: boolean,
-  groups: VoterGroup[] | null,
-  onDeleteClick: (poll: Poll) => void 
-}) {
-
-  if (isLoading) {
-    return (
-      <>
-        <div className="md:hidden space-y-4">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
-              <CardContent><Skeleton className="h-5 w-20 mt-2 rounded-full" /></CardContent>
-              <CardFooter><Skeleton className="h-9 w-full" /></CardFooter>
-            </Card>
-          ))}
-        </div>
-        <div className="hidden md:block">
-          <Table>
-            <TableHeader><TableRow><TableHead>Pregunta</TableHead><TableHead>Estado</TableHead><TableHead>Creado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {[...Array(3)].map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell><Skeleton className="h-5 w-48" /></TableCell>
-                  <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
-                  <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-                  <TableCell className="text-right"><Skeleton className="h-10 w-10" /></TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </>
-    );
-  }
-  
-  if (!polls || polls.length === 0) {
-    const noGroups = !groups || groups.length === 0;
-    return (
-      <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
-        <h3 className="text-lg font-semibold">{noGroups ? "Primero crea un grupo" : "Aún no tienes encuestas"}</h3>
-        <p className="text-muted-foreground text-sm max-w-md">
-          {noGroups
-            ? "Para crear una encuesta, primero necesitas organizar a tus participantes en grupos de votantes."
-            : "¡Es hora de crear tu primera encuesta para que tus grupos puedan votar!"
-          }
-        </p>
-        {noGroups && (
-            <Button asChild>
-                <Link href="/admin/groups">
-                    <Users className="mr-2 h-4 w-4" />
-                    Ir a Grupos
-                </Link>
-            </Button>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <>
-      <div className="md:hidden space-y-4">
-        {polls.map((poll) => <PollCard key={poll.id} poll={poll} />)}
-      </div>
-      <div className="hidden md:block">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Pregunta</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Creado</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {polls.map((poll) => (
-              <TableRow key={poll.id}>
-                <TableCell className="font-medium max-w-sm truncate">{poll.question}</TableCell>
-                <TableCell><Badge variant={statusVariant[poll.status] || 'secondary'}>{statusText[poll.status] || poll.status}</Badge></TableCell>
-                <TableCell>{poll.createdAt ? format(poll.createdAt.toDate(), "d MMM, yyyy", { locale: es }) : 'N/A'}</TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => onDeleteClick(poll)}
-                      >
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-    </>
-  );
-}
-
 
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
+  
+  // State for the single, global dialog. It holds the poll to be deleted.
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
 
   const pollsQuery = useMemoFirebase(() => {
@@ -199,20 +106,14 @@ export default function DashboardPage() {
   const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
 
 
-  const handleDeleteClick = (poll: Poll) => {
-    setPollToDelete(poll);
-    setIsAlertOpen(true);
-  };
-
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
     
-    // Copy data needed for toasts/logic before state is cleared
     const pollToDeleteCopy = { ...pollToDelete };
 
     // Close the dialog UI *before* the async operation.
-    // This allows Radix to start its exit animation without being interrupted by the data re-fetch.
-    setIsAlertOpen(false);
+    // This is the key to preventing the "zombie overlay" bug.
+    setPollToDelete(null);
 
     toast({
         title: "Eliminando encuesta...",
@@ -233,21 +134,19 @@ export default function DashboardPage() {
             description: `La encuesta "${pollToDeleteCopy.question}" se eliminó correctamente.`,
         });
     } catch(error: any) {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: pollRef.path,
             operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
+        }));
         toast({
              variant: "destructive",
              title: "Error al eliminar",
              description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
-        })
-    } finally {
-       // Clean up state after operation is complete.
-       setPollToDelete(null);
+        });
     }
   };
+  
+  const isLoading = pollsLoading || groupsLoading;
 
 
   return (
@@ -265,16 +164,112 @@ export default function DashboardPage() {
               </div>
           </CardHeader>
           <CardContent>
-              <PollsList
-                  polls={polls}
-                  isLoading={pollsLoading || groupsLoading}
-                  groups={groups}
-                  onDeleteClick={handleDeleteClick}
-              />
+            {isLoading ? (
+                <>
+                    {/* Mobile Skeleton */}
+                    <div className="md:hidden space-y-4">
+                        {[...Array(3)].map((_, i) => (
+                            <Card key={i}>
+                            <CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader>
+                            <CardContent><Skeleton className="h-5 w-20 mt-2 rounded-full" /></CardContent>
+                            <CardFooter><Skeleton className="h-9 w-full" /></CardFooter>
+                            </Card>
+                        ))}
+                    </div>
+                    {/* Desktop Skeleton */}
+                    <div className="hidden md:block">
+                    <Table>
+                        <TableHeader><TableRow><TableHead>Pregunta</TableHead><TableHead>Estado</TableHead><TableHead>Creado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
+                        <TableBody>
+                        {[...Array(3)].map((_, i) => (
+                            <TableRow key={i}>
+                            <TableCell><Skeleton className="h-5 w-48" /></TableCell>
+                            <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                            <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+                            <TableCell className="text-right"><Skeleton className="h-10 w-10" /></TableCell>
+                            </TableRow>
+                        ))}
+                        </TableBody>
+                    </Table>
+                    </div>
+                </>
+            ) : !polls || polls.length === 0 ? (
+                (() => {
+                    const noGroups = !groups || groups.length === 0;
+                    return (
+                        <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
+                        <h3 className="text-lg font-semibold">{noGroups ? "Primero crea un grupo" : "Aún no tienes encuestas"}</h3>
+                        <p className="text-muted-foreground text-sm max-w-md">
+                            {noGroups
+                            ? "Para crear una encuesta, primero necesitas organizar a tus participantes en grupos de votantes."
+                            : "¡Es hora de crear tu primera encuesta para que tus grupos puedan votar!"
+                            }
+                        </p>
+                        {noGroups && (
+                            <Button asChild>
+                                <Link href="/admin/groups">
+                                    <Users className="mr-2 h-4 w-4" />
+                                    Ir a Grupos
+                                </Link>
+                            </Button>
+                        )}
+                        </div>
+                    );
+                })()
+            ) : (
+                <>
+                    {/* Mobile List */}
+                    <div className="md:hidden space-y-4">
+                        {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={setPollToDelete} />)}
+                    </div>
+                    {/* Desktop Table */}
+                    <div className="hidden md:block">
+                        <Table>
+                        <TableHeader>
+                            <TableRow>
+                            <TableHead>Pregunta</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Creado</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {polls.map((poll) => (
+                            <TableRow key={poll.id}>
+                                <TableCell className="font-medium max-w-sm truncate">{poll.question}</TableCell>
+                                <TableCell><Badge variant={statusVariant[poll.status] || 'secondary'}>{statusText[poll.status] || poll.status}</Badge></TableCell>
+                                <TableCell>{poll.createdAt ? format(poll.createdAt.toDate(), "d MMM, yyyy", { locale: es }) : 'N/A'}</TableCell>
+                                <TableCell className="text-right">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Abrir menu</span>
+                                        <MoreHorizontal className="h-4 w-4" />
+                                    </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                    <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
+                                    <DropdownMenuItem
+                                        className="text-destructive"
+                                        onClick={() => setPollToDelete(poll)}
+                                    >
+                                        Eliminar
+                                    </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                </TableCell>
+                            </TableRow>
+                            ))}
+                        </TableBody>
+                        </Table>
+                    </div>
+                </>
+            )}
           </CardContent>
       </Card>
 
-       <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
+      {/* This is the single, global AlertDialog. It is controlled by `pollToDelete` state. */}
+       <AlertDialog open={!!pollToDelete} onOpenChange={(open) => !open && setPollToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
