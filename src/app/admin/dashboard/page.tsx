@@ -179,6 +179,49 @@ function PollsList({
   );
 }
 
+
+function DashboardContents({ 
+    onDeleteClick 
+}: { 
+    onDeleteClick: (poll: Poll) => void 
+}) {
+    const firestore = useFirestore();
+    const { user } = useUser();
+
+    const pollsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
+    }, [firestore, user]);
+
+    const groupsQuery = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return query(collection(firestore, 'admins', user.uid, 'groups'));
+    }, [firestore, user]);
+
+    const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
+    const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
+
+    return (
+        <Card>
+            <CardHeader>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                    <CardTitle>Tus Encuestas</CardTitle>
+                    <CreatePollDialog />
+                </div>
+            </CardHeader>
+            <CardContent>
+                <PollsList
+                    polls={polls}
+                    isLoading={pollsLoading || groupsLoading}
+                    groups={groups}
+                    onDeleteClick={onDeleteClick}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -186,20 +229,6 @@ export default function DashboardPage() {
   const [isAlertOpen, setIsAlertOpen] = useState(false);
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Data fetching lifted to the parent component
-  const pollsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'admins', user.uid, 'polls'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
-
-  const groupsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'admins', user.uid, 'groups'));
-  }, [firestore, user]);
-
-  const { data: polls, isLoading: pollsLoading } = useCollection<Poll>(pollsQuery);
-  const { data: groups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
 
   const handleDeleteClick = (poll: Poll) => {
     setPollToDelete(poll);
@@ -249,22 +278,9 @@ export default function DashboardPage() {
         <CardTitle className="text-3xl font-bold tracking-tight font-headline">Encuestas</CardTitle>
         <CardDescription>Crea y administra tus encuestas de votación anónima.</CardDescription>
       </CardHeader>
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-            <CardTitle>Tus Encuestas</CardTitle>
-            <CreatePollDialog />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <PollsList 
-            polls={polls}
-            isLoading={pollsLoading || groupsLoading}
-            groups={groups}
-            onDeleteClick={handleDeleteClick} 
-          />
-        </CardContent>
-      </Card>
+      
+      <DashboardContents onDeleteClick={handleDeleteClick} />
+
        <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
         <AlertDialogContent>
             <AlertDialogHeader>
