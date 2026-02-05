@@ -163,11 +163,6 @@ function PollsInboxClient() {
                     </Card>
                 ))
             )}
-            <div className="text-center mt-4">
-                 <Button variant="link" asChild>
-                    <Link href="/inbox">Usar otra identificación</Link>
-                </Button>
-            </div>
         </div>
     );
 }
