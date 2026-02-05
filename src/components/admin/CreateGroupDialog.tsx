@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, ChangeEvent, DragEvent, useEffect } from 'react';
@@ -97,7 +96,8 @@ export function CreateGroupDialog() {
   };
 
   useEffect(() => {
-    if (!open) return;
+    // Do not proceed if the dialog is closed or the user is not authenticated.
+    if (!open || !user) return;
 
     const connectAndFetch = async () => {
         setIsLoadingLlamados(true);
@@ -145,7 +145,7 @@ export function CreateGroupDialog() {
                 let fechaString = 'Fecha inválida';
                 const fechaForQuery = data.fecha; // Keep original value for querying
 
-                if (data.fecha && typeof data.fecha === 'string' && data.fecha.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                if (data.fecha && typeof data.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
                     const [year, month, day] = data.fecha.split('-');
                     fechaString = `${day}/${month}/${year}`;
                 } else if (data.fecha && typeof data.fecha.toDate === 'function') { // Fallback for Timestamps
@@ -153,14 +153,14 @@ export function CreateGroupDialog() {
                     fechaString = fechaDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
                 }
                 
-                const key = `${fechaString}|${data.clave}|${data.direccion}|${data.maquina}`;
+                const key = `${fechaString}|${data.clave || 'S/C'}|${data.direccion || 'S/D'}|${data.maquina || 'S/M'}`;
             
                 if (acc[key] || !data.clave || !data.direccion || !data.maquina) return acc;
             
                 acc[key] = {
                   id: key,
                   fecha: fechaForQuery, // Use original value for querying later
-                  nombre: `${fechaString} - ${data.clave || 'S/C'} - ${data.direccion || 'S/D'} - ${data.maquina || 'S/M'}`,
+                  nombre: `${fechaString} - ${data.clave} - ${data.direccion} - ${data.maquina}`,
                 };
             
                 return acc;
@@ -178,7 +178,7 @@ export function CreateGroupDialog() {
 
     connectAndFetch();
 
-  }, [open]);
+  }, [open, user]);
 
   const handleFile = (file: File) => {
     if (!file) return;
@@ -284,6 +284,7 @@ export function CreateGroupDialog() {
       const volunteers: ParsedVoter[] = [];
       const volunteersCol = collection(secondaryDb, 'voluntarios');
   
+      // Firestore 'in' query supports up to 30 elements in the array
       for (let i = 0; i < volunteerIds.length; i += 30) {
         const chunk = volunteerIds.slice(i, i + 30);
         if (chunk.length === 0) continue;
