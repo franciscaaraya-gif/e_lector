@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, ChangeEvent, DragEvent, useEffect } from 'react';
@@ -5,10 +6,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import * as XLSX from 'xlsx';
-import { addDoc, collection, serverTimestamp, getDocs, orderBy, query, where, type Firestore, doc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, getDocs, orderBy, query, where, type Firestore, doc, documentId } from 'firebase/firestore';
 import { initializeApp, getApp, type FirebaseApp, deleteApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
-import { FileUp, Loader2, PlusCircle, Trash2, Import, Info } from 'lucide-react';
+import { FileUp, Loader2, PlusCircle, Trash2, Import } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -115,7 +116,7 @@ export function CreateGroupDialog() {
         };
         // -----------------------------
 
-        if (!secondaryFirebaseConfig.apiKey || secondaryFirebaseConfig.apiKey === "TU_API_KEY_AQUI") {
+        if (!secondaryFirebaseConfig.apiKey || secondaryFirebaseConfig.apiKey.includes("TU_API_KEY")) {
             setLoadLlamadosError("La configuración de la 'App de Listas' aún no se ha añadido. Edita este archivo para añadirla.");
             setIsLoadingLlamados(false);
             return;
@@ -141,8 +142,17 @@ export function CreateGroupDialog() {
                 const data = doc.data();
                 if (!data) return acc;
 
-                const fecha = data.fecha?.seconds ? new Date(data.fecha.seconds * 1000) : null;
-                const fechaString = fecha ? fecha.toLocaleDateString() : 'Fecha inválida';
+                let fecha = null;
+                // Check if data.fecha exists and has a toDate method (is a Firestore Timestamp)
+                if (data.fecha && typeof data.fecha.toDate === 'function') {
+                    fecha = data.fecha.toDate();
+                } 
+                // Fallback for plain objects from serialization
+                else if (data.fecha && typeof data.fecha.seconds === 'number') {
+                    fecha = new Date(data.fecha.seconds * 1000);
+                }
+
+                const fechaString = fecha ? fecha.toLocaleDateString('es-ES') : 'Fecha inválida';
                 
                 const key = `${fechaString}|${data.clave}|${data.direccion}|${data.maquina}`;
             
@@ -150,8 +160,8 @@ export function CreateGroupDialog() {
             
                 acc[key] = {
                   id: key,
-                  fecha: data.fecha,
-                  nombre: `${fechaString} - ${data.clave} - ${data.direccion} - ${data.maquina}`,
+                  fecha: data.fecha, // Keep original timestamp object for later queries
+                  nombre: `${fechaString} - ${data.clave || 'S/C'} - ${data.direccion || 'S/D'} - ${data.maquina || 'S/M'}`,
                 };
             
                 return acc;
@@ -235,12 +245,12 @@ export function CreateGroupDialog() {
     setParsedVoters([]);
   
     try {
-      const [fechaStr, clave, direccion, maquina] = selectedLlamadoId.split('|');
-      
       const llamado = llamados.find(l => l.id === selectedLlamadoId);
       if (!llamado || !llamado.fecha) {
         throw new Error("No se pudo encontrar la fecha del llamado seleccionado.");
       }
+      
+      const [_fechaStr, clave, direccion, maquina] = llamado.id.split('|');
 
       const qLlamados = query(
         collection(secondaryDb, 'llamados'),
@@ -275,14 +285,13 @@ export function CreateGroupDialog() {
       const volunteers: ParsedVoter[] = [];
       const volunteersCol = collection(secondaryDb, 'voluntarios');
   
-      // Firestore 'in' query is limited to 30 elements in the array.
       for (let i = 0; i < volunteerIds.length; i += 30) {
         const chunk = volunteerIds.slice(i, i + 30);
         if (chunk.length === 0) continue;
 
         const qVols = query(
           volunteersCol,
-          where('__name__', 'in', chunk)
+          where(documentId(), 'in', chunk)
         );
         
         const volSnap = await getDocs(qVols);
@@ -307,10 +316,14 @@ export function CreateGroupDialog() {
   
     } catch (error: any) {
       console.error("Error durante la importación:", error);
+      let description = error.message || 'Ocurrió un error desconocido durante la importación.';
+       if (error.code === 'failed-precondition' && error.message.includes('index')) {
+            description = 'Falta un índice en la base de datos de "App de Listas". Revisa la consola del navegador para crearlo.';
+        }
       toast({
         variant: 'destructive',
         title: 'Error al importar',
-        description: error.message || 'Ocurrió un error desconocido durante la importación.',
+        description,
       });
     } finally {
       setIsImporting(false);
@@ -348,9 +361,9 @@ export function CreateGroupDialog() {
           <DialogTitle>Crear Nuevo Grupo</DialogTitle>
           <DialogDescription>Crea un grupo de votantes subiendo un archivo o importándolo desde tu App de Listas.</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 flex-1 min-h-0 flex flex-col">
-            <div className="space-y-4 pr-1 flex-1 min-h-0 overflow-y-auto">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-6 -mr-6">
+            <Form {...form}>
+              <form id="create-group-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                     <FormItem><FormLabel>Nombre del Grupo</FormLabel><FormControl><Input placeholder="Ej: Voluntarios de la campaña" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
                 )}/>
@@ -385,7 +398,7 @@ export function CreateGroupDialog() {
 
                         {!isLoadingLlamados && !loadLlamadosError && (
                             llamados.length > 0 ? (
-                                <div className="space-y-4 pt-4 border-t">
+                                <div className="space-y-4">
                                     <FormItem>
                                         <FormLabel>1. Seleccionar Llamado</FormLabel>
                                         <Select onValueChange={setSelectedLlamadoId} value={selectedLlamadoId} disabled={isImporting}>
@@ -427,18 +440,20 @@ export function CreateGroupDialog() {
                         </ScrollArea>
                     </div>
                 )}
-            </div>
+              </form>
+            </Form>
+        </div>
 
-            <DialogFooter className="pt-4 border-t">
-              <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetState(); }} disabled={isLoading}>Cancelar</Button>
-              <Button type="submit" disabled={isLoading || parsedVoters.length === 0}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Grupo
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+        <DialogFooter className="pt-4 border-t -mb-6 pb-6 -mx-6 px-6 bg-background rounded-b-lg">
+          <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetState(); }} disabled={isLoading}>Cancelar</Button>
+          <Button type="submit" form="create-group-form" disabled={isLoading || parsedVoters.length === 0}>
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Crear Grupo
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
+
+    
