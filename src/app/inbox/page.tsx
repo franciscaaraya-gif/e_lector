@@ -47,11 +47,13 @@ function VoterInboxForm() {
         },
     });
 
+    const { setValue } = form;
+
     useEffect(() => {
-        if (preselectedSalaId && salas?.some(s => s.adminId === preselectedSalaId)) {
-            form.setValue('salaId', preselectedSalaId);
+        if (preselectedSalaId && salas) {
+            setValue('salaId', preselectedSalaId);
         }
-    }, [preselectedSalaId, salas, form]);
+    }, [preselectedSalaId, salas, setValue]);
 
 
     const {
