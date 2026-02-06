@@ -108,12 +108,12 @@ export function CreateGroupDialog() {
         // Para importar desde la "App de Listas", añade la configuración de ese proyecto
         // de Firebase a un archivo .env.local en la raíz de este proyecto.
         const secondaryFirebaseConfig = {
-          apiKey: process.env.NEXT_PUBLIC_EXTERNAL_API_KEY,
-          authDomain: process.env.NEXT_PUBLIC_EXTERNAL_AUTH_DOMAIN,
-          projectId: process.env.NEXT_PUBLIC_EXTERNAL_PROJECT_ID,
-          storageBucket: process.env.NEXT_PUBLIC_EXTERNAL_STORAGE_BUCKET,
-          messagingSenderId: process.env.NEXT_PUBLIC_EXTERNAL_MESSAGING_SENDER_ID,
-          appId: process.env.NEXT_PUBLIC_EXTERNAL_APP_ID
+          apiKey: process.env.EXTERNAL_PROJECT_API_KEY,
+          authDomain: "ma-apps-2d75f.firebaseapp.com",
+          projectId: "ma-apps-2d75f",
+          storageBucket: "ma-apps-2d75f.firebasestorage.app",
+          messagingSenderId: "841893715709",
+          appId: "1:841893715709:web:30918447bb56fca4b92894"
         };
         // -----------------------------
 
