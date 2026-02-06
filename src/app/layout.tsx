@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { ForceBodyInteractive } from '@/components/ForceBodyInteractive'
 
 export const metadata: Metadata = {
   title: 'E-lector: Votación Digital Segura',
@@ -22,9 +23,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
       </head>
       <body className={cn('font-body antialiased')}>
+        <ForceBodyInteractive />
+
         <FirebaseClientProvider>
           {children}
         </FirebaseClientProvider>
+
         <Toaster />
       </body>
     </html>
