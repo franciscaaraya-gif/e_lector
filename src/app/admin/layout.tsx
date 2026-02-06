@@ -94,6 +94,22 @@ export default function AdminLayout({
     }
   }, [user, loading, pathname, router]);
 
+  useEffect(() => {
+    // This is the forceful workaround for the Radix UI bug where overlays
+    // get "stuck" and block pointer events. This effect ensures that any
+    // orphaned Radix portal elements are removed from the DOM on every
+    // route change within the admin panel, preventing a UI freeze.
+    const cleanup = () => {
+      document
+        .querySelectorAll('[data-radix-portal]')
+        .forEach(el => el.remove());
+    };
+
+    cleanup();
+
+    return cleanup;
+  }, [pathname]); // Re-run this effect on every navigation to clean up potential zombie overlays.
+
   // 1. If we are on the login page, render it.
   // The useEffect will handle redirecting away if the user is already logged in.
   if (isLoginPage) {

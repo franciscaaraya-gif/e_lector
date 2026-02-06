@@ -105,7 +105,8 @@ export function CreateGroupDialog() {
         setLlamados([]);
 
         // --- GUÍA DE CONFIGURACIÓN ---
-        // Pega aquí la configuración de Firebase de tu "App de Listas".
+        // Para importar desde la "App de Listas", añade la configuración de ese proyecto
+        // de Firebase a un archivo .env.local en la raíz de este proyecto.
         const secondaryFirebaseConfig = {
           apiKey: process.env.NEXT_PUBLIC_EXTERNAL_PROJECT_API_KEY as string,
           authDomain: "ma-apps-2d75f.firebaseapp.com",
@@ -116,8 +117,8 @@ export function CreateGroupDialog() {
         };
         // -----------------------------
 
-        if (!secondaryFirebaseConfig.apiKey || secondaryFirebaseConfig.apiKey.includes("TU_API_KEY")) {
-            setLoadLlamadosError("La configuración de la 'App de Listas' aún no se ha añadido. Edita este archivo para añadirla.");
+        if (!secondaryFirebaseConfig.apiKey) {
+            setLoadLlamadosError("La configuración para importar no se encontró. Crea un archivo .env.local con las variables NEXT_PUBLIC_EXTERNAL_* y reinicia el servidor.");
             setIsLoadingLlamados(false);
             return;
         }

@@ -1,0 +1,7 @@
+<svg width="100" height="100" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M10 30H90V80C90 85.5228 85.5228 90 80 90H20C14.4772 90 10 85.5228 10 80V30Z" fill="#3c3c9b" />
+  <path d="M10 30H90" stroke="#3c3c9b" stroke-opacity="0.8" stroke-width="4" />
+  <rect x="10" y="20" width="80" height="10" rx="2" fill="#3c3c9b" />
+  <path d="M35 55L48.5 68.5L70 45" stroke="#fafafa" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+  <rect x="45" y="10" width="10" height="20" fill="#3c3c9b" fill-opacity="0.5" />
+</svg>

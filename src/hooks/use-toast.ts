@@ -9,7 +9,8 @@ import type {
 } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 1000000
+const TOAST_REMOVE_DELAY =  300
+
 
 type ToasterToast = ToastProps & {
   id: string
@@ -90,31 +91,21 @@ export const reducer = (state: State, action: Action): State => {
         ),
       }
 
-    case "DISMISS_TOAST": {
-      const { toastId } = action
-
-      // ! Side effects ! - This could be extracted into a dismissToast() action,
-      // but I'll keep it here for simplicity
-      if (toastId) {
-        addToRemoveQueue(toastId)
-      } else {
-        state.toasts.forEach((toast) => {
-          addToRemoveQueue(toast.id)
-        })
+      case "DISMISS_TOAST": {
+        const { toastId } = action
+      
+        if (toastId) addToRemoveQueue(toastId)
+        else state.toasts.forEach(t => addToRemoveQueue(t.id))
+      
+        return {
+          ...state,
+          toasts: state.toasts.map(t =>
+            toastId === undefined || t.id === toastId
+              ? { ...t, open: false, onOpenChange: undefined }
+              : t
+          ),
+        }
       }
-
-      return {
-        ...state,
-        toasts: state.toasts.map((t) =>
-          t.id === toastId || toastId === undefined
-            ? {
-                ...t,
-                open: false,
-              }
-            : t
-        ),
-      }
-    }
     case "REMOVE_TOAST":
       if (action.toastId === undefined) {
         return {
