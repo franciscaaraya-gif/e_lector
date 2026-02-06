@@ -82,4 +82,23 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* 
+    Radix UI Bug Fix: Prevent "zombie" overlays from blocking clicks.
+    When a Radix dialog unmounts improperly, it can leave a portal element
+    in the DOM that blocks all pointer events. This rule makes the portal
+    container non-interactive by default.
+  */
+  [data-radix-portal] {
+    pointer-events: none;
+  }
+
+  /*
+    Re-enable pointer events for the direct children of the portal, which are
+    the actual overlay and content. This ensures that active, visible dialogs
+    are still fully interactive. The "zombie" portals are usually empty.
+  */
+  [data-radix-portal] > * {
+    pointer-events: auto;
+  }
 }

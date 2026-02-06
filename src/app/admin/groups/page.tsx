@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal, PlusCircle } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -51,48 +51,7 @@ function GroupCard({ group }: { group: VoterGroup }) {
   );
 }
 
-function GroupsList() {
-  const firestore = useFirestore();
-  const { user } = useUser();
-  const { toast } = useToast();
-  const [isAlertOpen, setIsAlertOpen] = useState(false);
-  const [groupToDelete, setGroupToDelete] = useState<VoterGroup | null>(null);
-
-  const groupsQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return query(collection(firestore, 'admins', user.uid, 'groups'), orderBy('createdAt', 'desc'));
-  }, [firestore, user]);
-
-  const { data: groups, isLoading } = useCollection<VoterGroup>(groupsQuery);
-
-  const handleDeleteClick = (group: VoterGroup) => {
-    setGroupToDelete(group);
-    setIsAlertOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!groupToDelete || !firestore || !user) return;
-    
-    const groupRef = doc(firestore, 'admins', user.uid, 'groups', groupToDelete.id);
-
-    try {
-        await deleteDoc(groupRef);
-        toast({
-            title: "Grupo Eliminado",
-            description: `El grupo "${groupToDelete.name}" ha sido eliminado.`,
-        });
-    } catch(error: any) {
-        const permissionError = new FirestorePermissionError({
-            path: groupRef.path,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    } finally {
-        setIsAlertOpen(false);
-        setGroupToDelete(null);
-    }
-  };
-
+function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGroup[] | null, isLoading: boolean, onGroupDeleteClick: (group: VoterGroup) => void }) {
 
   if (isLoading) {
     return (
@@ -170,7 +129,7 @@ function GroupsList() {
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="text-destructive"
-                        onClick={() => handleDeleteClick(group)}
+                        onClick={() => onGroupDeleteClick(group)}
                       >
                         Eliminar
                       </DropdownMenuItem>
@@ -182,28 +141,61 @@ function GroupsList() {
           </TableBody>
         </Table>
       </div>
-      <AlertDialog open={isAlertOpen} onOpenChange={setIsAlertOpen}>
-        <AlertDialogContent>
-            <AlertDialogHeader>
-                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
-                <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Se eliminará permanentemente el grupo
-                    <span className="font-semibold"> {groupToDelete?.name}</span>.
-                </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDeleteConfirm} className={buttonVariants({ variant: "destructive" })}>
-                    Eliminar
-                </AlertDialogAction>
-            </AlertDialogFooter>
-        </AlertDialogContent>
-    </AlertDialog>
     </>
   );
 }
 
 export default function GroupsPage() {
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { toast } = useToast();
+  
+  const [groupToDelete, setGroupToDelete] = useState<VoterGroup | null>(null);
+
+  const groupsQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(collection(firestore, 'admins', user.uid, 'groups'), orderBy('createdAt', 'desc'));
+  }, [firestore, user]);
+
+  const { data: groups, isLoading } = useCollection<VoterGroup>(groupsQuery);
+
+  const handleGroupDeleteClick = (group: VoterGroup) => {
+    setGroupToDelete(group);
+  };
+  
+  const handleGroupDeleteCancel = () => {
+      setGroupToDelete(null);
+  };
+
+  const handleGroupDeleteConfirm = async () => {
+    if (!groupToDelete || !firestore || !user) return;
+    
+    const groupRef = doc(firestore, 'admins', user.uid, 'groups', groupToDelete.id);
+    const groupName = groupToDelete.name;
+
+    // Close dialog immediately
+    setGroupToDelete(null);
+    
+    toast({
+        title: "Eliminando grupo...",
+        description: `Por favor espera mientras se elimina "${groupName}".`
+    });
+
+    try {
+        await deleteDoc(groupRef);
+        toast({
+            title: "Grupo Eliminado",
+            description: `El grupo "${groupName}" ha sido eliminado.`,
+        });
+    } catch(error: any) {
+        const permissionError = new FirestorePermissionError({
+            path: groupRef.path,
+            operation: 'delete',
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }
+  };
+
   return (
     <div className="space-y-6">
         <CardHeader className="p-0">
@@ -218,9 +210,26 @@ export default function GroupsPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <GroupsList />
+                <GroupsList groups={groups} isLoading={isLoading} onGroupDeleteClick={handleGroupDeleteClick} />
             </CardContent>
         </Card>
+        <AlertDialog open={!!groupToDelete} onOpenChange={(open) => !open && handleGroupDeleteCancel()}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Esta acción no se puede deshacer. Se eliminará permanentemente el grupo
+                    <span className="font-semibold"> {groupToDelete?.name}</span>.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel onClick={handleGroupDeleteCancel}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={handleGroupDeleteConfirm} className={buttonVariants({ variant: "destructive" })}>
+                    Eliminar
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+    </AlertDialog>
     </div>
   );
 }
