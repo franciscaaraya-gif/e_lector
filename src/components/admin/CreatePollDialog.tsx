@@ -24,7 +24,7 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebas
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
-import { VoterGroup } from '@/lib/types';
+import { VoterGroup, PollTemplate } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
@@ -56,6 +56,7 @@ export function CreatePollDialog() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
 
   const groupsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -63,6 +64,13 @@ export function CreatePollDialog() {
   }, [user, firestore]);
 
   const { data: voterGroups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
+
+  const templatesQuery = useMemoFirebase(() => {
+    if (!user || !firestore) return null;
+    return collection(firestore, `admins/${user.uid}/poll_templates`);
+  }, [user, firestore]);
+  const { data: pollTemplates, isLoading: templatesLoading } = useCollection<PollTemplate>(templatesQuery);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -81,6 +89,27 @@ export function CreatePollDialog() {
 
   const pollType = form.watch('pollType');
 
+  const handleTemplateChange = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (templateId === 'custom') {
+        form.setValue('pollType', 'simple');
+        form.setValue('maxSelections', undefined);
+        form.clearErrors('maxSelections');
+    } else {
+        const template = pollTemplates?.find(t => t.id === templateId);
+        if (template) {
+            form.setValue('pollType', template.pollType);
+            if (template.pollType === 'multiple' && template.maxSelections) {
+                form.setValue('maxSelections', template.maxSelections);
+            } else {
+                form.setValue('maxSelections', undefined);
+            }
+            form.trigger('maxSelections');
+        }
+    }
+  };
+
+
   const resetDialog = () => {
     form.reset({
         question: '',
@@ -89,6 +118,7 @@ export function CreatePollDialog() {
         groupId: undefined,
     });
     setIsLoading(false);
+    setSelectedTemplateId('custom');
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -195,6 +225,26 @@ export function CreatePollDialog() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1">
+            <FormItem>
+              <FormLabel>Plantilla de Votación (Opcional)</FormLabel>
+              <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder={templatesLoading ? "Cargando plantillas..." : "Usar una plantilla..."} />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="custom">Personalizada (desde cero)</SelectItem>
+                  {pollTemplates?.map(template => (
+                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Seleccionar una plantilla llenará automáticamente el tipo de encuesta y otras opciones.
+              </FormDescription>
+            </FormItem>
+            
             <FormField
               control={form.control}
               name="question"
@@ -254,8 +304,9 @@ export function CreatePollDialog() {
                   <FormControl>
                     <RadioGroup
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       className="flex flex-col space-y-1"
+                      disabled={selectedTemplateId !== 'custom'}
                     >
                       <FormItem className="flex items-center space-x-3 space-y-0">
                         <FormControl>
@@ -288,7 +339,7 @@ export function CreatePollDialog() {
                   <FormItem>
                     <FormLabel>Máximo de Opciones a Marcar</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 3" {...field} min={2} />
+                      <Input type="number" placeholder="Ej: 3" {...field} min={2} disabled={selectedTemplateId !== 'custom'} />
                     </FormControl>
                     <FormDescription>
                       El número de opciones que cada votante puede seleccionar.
