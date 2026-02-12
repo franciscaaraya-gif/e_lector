@@ -103,7 +103,7 @@ export function VoluntariosManager() {
           const isValidCargo = cargo && cargo !== '-';
           const isValidCalidad = calidad && calidad !== '-';
 
-          let tipoFinal = 'Voluntarios(as)';
+          let tipoFinal = 'Voluntarios';
           if (isValidCargo) {
               tipoFinal = cargo;
           } else if (isValidCalidad) {

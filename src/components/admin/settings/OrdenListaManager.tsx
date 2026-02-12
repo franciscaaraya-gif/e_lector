@@ -35,8 +35,25 @@ export function OrdenListaManager() {
 
   const tiposUnicos = useMemo(() => {
     if (!listaCompleta) return [];
-    const tipos = listaCompleta.map(item => item.tipo).filter(Boolean);
-    return Array.from(new Set(tipos));
+    const allTipos = listaCompleta.map(item => item.tipo).filter(Boolean);
+    
+    // Regex to find numbers or cardinal words at the end of a string
+    const cardinalRegex = /(.+?)\s+(\d+|primero|segundo|tercero|cuarto|quinto)$/i;
+    
+    const groupedTipos = new Set<string>();
+
+    allTipos.forEach(tipo => {
+        const match = tipo.match(cardinalRegex);
+        if (match && match[1]) {
+            // Add the base name (e.g., "Teniente") to the set
+            groupedTipos.add(match[1].trim());
+        } else {
+            // Not a numbered type, add as is
+            groupedTipos.add(tipo);
+        }
+    });
+
+    return Array.from(groupedTipos);
   }, [listaCompleta]);
 
   useEffect(() => {
@@ -44,16 +61,6 @@ export function OrdenListaManager() {
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
 
-    const cardinalMap: { [key: string]: number } = {
-        'primero': 1, 'segundo': 2, 'tercero': 3, 'cuarto': 4, 'quinto': 5,
-        '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
-    };
-    
-    const findCardinal = (str: string): number => {
-        const match = str.match(/(primero|segundo|tercero|cuarto|quinto|\d+)/i);
-        return match && cardinalMap[match[0].toLowerCase()] ? cardinalMap[match[0].toLowerCase()] : 0;
-    }
-    
     tiposUnicos.forEach(tipo => {
         let baseOrder: number;
         const lowerTipo = tipo.toLowerCase();
@@ -64,18 +71,10 @@ export function OrdenListaManager() {
             baseOrder = 2;
         } else if (lowerTipo === 'capitán') {
             baseOrder = 3;
-        } else if (lowerTipo.includes('teniente')) {
-            const cardinal = findCardinal(tipo);
-            baseOrder = 4 + (cardinal > 0 ? cardinal / 100 : 0.99); // Group un-numbered ones at the end
-        } else if (lowerTipo.includes('ayudante') || lowerTipo.includes('ayte.')) {
-            if (lowerTipo.includes('comandancia')) {
-                baseOrder = 11;
-            } else if (lowerTipo.includes('administración')) {
-                 baseOrder = 14;
-            } else {
-                 const cardinal = findCardinal(tipo);
-                 baseOrder = 5 + (cardinal > 0 ? cardinal / 100 : 0.99);
-            }
+        } else if (lowerTipo === 'teniente') {
+            baseOrder = 4;
+        } else if (lowerTipo === 'ayudante') {
+            baseOrder = 5;
         } else if (lowerTipo === 'maquinista') {
             baseOrder = 6;
         } else if (lowerTipo === 'secretario') {
@@ -86,22 +85,26 @@ export function OrdenListaManager() {
             baseOrder = 9;
         } else if (lowerTipo === 'cirujano') {
             baseOrder = 10;
+        } else if (lowerTipo === 'ayte. comandancia') {
+            baseOrder = 11;
         } else if (lowerTipo === 'miembro honorario') {
             baseOrder = 12;
         } else if (lowerTipo === 'insp. administración') {
             baseOrder = 13;
-        } else if (['activo', 'consejero de disciplina', 'honorario'].includes(lowerTipo)) {
+        } else if (lowerTipo === 'ayte. administración') {
+            baseOrder = 14;
+        } else if (['activo', 'consejero de disciplina', 'honorario', 'voluntarios'].includes(lowerTipo)) {
             baseOrder = 15;
         } else {
-            baseOrder = 99; // Voluntarios and others
+            baseOrder = 99; // Default for anything else
         }
         
         newOrdenes[tipo] = { orden: baseOrder, metodo: 'apellidos_asc' };
     });
 
-    // Sobrescribe el orden por defecto con cualquier configuración guardada en la base de datos
+    // Override with saved data from Firestore
     ordenLista?.forEach(item => {
-        if (tiposUnicos.includes(item.tipo)) { 
+        if (newOrdenes[item.tipo]) { 
             newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
         }
     });
