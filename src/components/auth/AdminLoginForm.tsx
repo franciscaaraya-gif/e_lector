@@ -135,6 +135,7 @@ export function AdminLoginForm() {
               await setDoc(adminDocRef, {
                   id: user.uid,
                   email: user.email,
+                  isBombero: true,
               });
           }
           // The onAuthStateChanged in AdminLayout will handle the redirect.
@@ -226,3 +227,5 @@ export function AdminLoginForm() {
     </Card>
   );
 }
+
+    

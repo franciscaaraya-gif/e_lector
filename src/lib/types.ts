@@ -20,6 +20,12 @@ export type Poll = {
   adminId: string;
 };
 
+export type Admin = {
+  id: string;
+  email: string;
+  isBombero?: boolean;
+};
+
 export type VoterInfo = {
   id: string;
   nombre: string;
@@ -97,3 +103,5 @@ export type PollTemplate = {
     pollType: 'simple' | 'multiple';
     maxSelections?: number;
 };
+
+    
