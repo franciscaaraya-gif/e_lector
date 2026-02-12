@@ -41,7 +41,7 @@ export function VoluntariosManager() {
 
   const { data: bomberos, isLoading: isLoadingBomberos } = useCollection<ListaCompletaItem>(bomberosQuery);
 
-  const headers = "NOMBRES, APELLIDOS, C.I, REG.GENERAL, COMPAÑÍA, GRUPO SANGRE, DONANTE, ALERGIAS, CARGO, CALIDAD";
+  const headers = "Registro,Rut,Digito,Nombre,Segundo Nombre,Primer Apellido,Segundo Apellido,Sangre Grupo,Sangre Rh,Calidad,Cargo";
 
   const copyHeaders = () => {
       navigator.clipboard.writeText(headers);
@@ -75,23 +75,36 @@ export function VoluntariosManager() {
         const getColumn = (normalizedName: string) => headerMap[normalizedName];
 
         const voluntarios = rows.map(row => {
-          const cargo = row[getColumn('CARGO')] || '';
-          const calidad = row[getColumn('CALIDAD')] || '';
+          const nombre = String(row[getColumn('NOMBRE')] || '').trim();
+          const segundoNombre = String(row[getColumn('SEGUNDONOMBRE')] || '').trim();
+          const primerApellido = String(row[getColumn('PRIMERAPELLIDO')] || '').trim();
+          const segundoApellido = String(row[getColumn('SEGUNDOAPELLIDO')] || '').trim();
+          const sangreGrupo = String(row[getColumn('SANGREGRUPO')] || '').trim();
+          const sangreRh = String(row[getColumn('SANGRERH')] || '').trim();
+          const cargo = String(row[getColumn('CARGO')] || '').trim();
+          const calidad = String(row[getColumn('CALIDAD')] || '').trim();
+          const rut = String(row[getColumn('RUT')] || '').trim();
+          const digito = String(row[getColumn('DIGITO')] || '').trim();
+
+          const nombres = `${nombre} ${segundoNombre}`.trim();
+          const apellidos = `${primerApellido} ${segundoApellido}`.trim();
+
+          if (!nombres && !apellidos && !rut) return null;
 
           return {
-            nombres: String(row[getColumn('NOMBRES')] || ''),
-            apellidos: String(row[getColumn('APELLIDOS')] || ''),
-            ci: String(row[getColumn('CI')] || ''),
-            regGeneral: String(row[getColumn('REGGENERAL')] || ''),
-            compania: String(row[getColumn('COMPANIA')] || ''),
-            grupoSangre: String(row[getColumn('GRUPOSANGRE')] || ''),
-            donante: String(row[getColumn('DONANTE')] || ''),
-            alergias: String(row[getColumn('ALERGIAS')] || ''),
-            cargo: cargo,
-            calidad: calidad,
-            tipo: cargo || calidad || 'Indefinido',
+              nombres: nombres,
+              apellidos: apellidos,
+              ci: rut && digito ? `${rut}-${digito}` : (rut || ''),
+              regGeneral: String(row[getColumn('REGISTRO')] || ''),
+              compania: '', // Not in the new format
+              grupoSangre: `${sangreGrupo}${sangreRh}`.trim(),
+              donante: '', // Not in the new format
+              alergias: '', // Not in the new format
+              cargo: cargo,
+              calidad: calidad,
+              tipo: cargo || calidad || 'Indefinido',
           };
-        }).filter(v => v.nombres || v.apellidos);
+        }).filter((v): v is ParsedVoluntario => v !== null);
 
         if (voluntarios.length === 0){
             toast({ variant: 'destructive', title: 'Archivo no válido', description: "No se encontraron voluntarios. Revisa que el archivo tenga datos y los cabezales correctos."});
