@@ -2,7 +2,7 @@
 
 import { useState, ChangeEvent, DragEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, writeBatch, query, where, doc } from 'firebase/firestore';
+import { collection, writeBatch, query, where, doc, getDocs } from 'firebase/firestore';
 import { Copy, FileUp, Loader2, Trash2, Users } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -91,18 +91,25 @@ export function VoluntariosManager() {
 
           if (!nombres && !apellidos && !rut) return null;
 
+          let tipoFinal = 'Voluntarios(as)';
+          if (cargo && cargo !== '-') {
+              tipoFinal = cargo;
+          } else if (calidad && calidad !== '-') {
+              tipoFinal = calidad;
+          }
+
           return {
               nombres: nombres,
               apellidos: apellidos,
               ci: rut && digito ? `${rut}-${digito}` : (rut || ''),
               regGeneral: String(row[getColumn('REGISTRO')] || ''),
-              compania: '', // Not in the new format
+              compania: '', 
               grupoSangre: `${sangreGrupo}${sangreRh}`.trim(),
-              donante: '', // Not in the new format
-              alergias: '', // Not in the new format
+              donante: '',
+              alergias: '',
               cargo: cargo,
               calidad: calidad,
-              tipo: cargo || calidad || 'Indefinido',
+              tipo: tipoFinal,
           };
         }).filter((v): v is ParsedVoluntario => v !== null);
 
@@ -137,6 +144,17 @@ export function VoluntariosManager() {
         const batch = writeBatch(firestore);
         const collectionRef = collection(firestore, 'admins', user.uid, 'lista_completa');
         
+        // Primero, borramos la lista existente de voluntarios para evitar duplicados.
+        const q = query(collectionRef);
+        const snapshot = await getDocs(q);
+        snapshot.docs.forEach(doc => {
+            // Cuidado: esto borra todo, si quieres mantener "martires" debes filtrar
+            if (doc.data().tipo !== 'martir') {
+                batch.delete(doc.ref);
+            }
+        });
+
+        // Luego, añadimos los nuevos
         parsedVoluntarios.forEach(voluntario => {
             const docRef = doc(collectionRef);
             batch.set(docRef, { ...voluntario, adminId: user.uid });
@@ -187,7 +205,7 @@ export function VoluntariosManager() {
                 </Button>
                  <Button onClick={handleUpload} disabled={isUploading}>
                     {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Cargar a la Base de Datos
+                    Cargar y Reemplazar Lista
                 </Button>
             </div>
           </div>

@@ -12,6 +12,23 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ListOrdered, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const defaultOrderRules: Record<string, { orden: number }> = {
+    'martir': { orden: 1 },
+    'Director': { orden: 2 },
+    'Capitán': { orden: 3 },
+    // Los tenientes se agrupan con orden base 4
+    'Maquinista': { orden: 7 },
+    'Secretario': { orden: 8 },
+    'Tesorero': { orden: 9 },
+    'Intendente': { orden: 10 },
+    'Cirujano': { orden: 11 },
+    // Los ayudantes se agrupan con orden base 12
+    'Insp. Administración': { orden: 13 },
+    'Ayte. Administración': { orden: 14 },
+    'Ayte. Comandancia': { orden: 15 },
+    'Voluntarios(as)': { orden: 99 },
+};
+
 export function OrdenListaManager() {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -40,14 +57,39 @@ export function OrdenListaManager() {
   }, [listaCompleta]);
 
   useEffect(() => {
-    if (ordenLista) {
-      const ordenesMap = ordenLista.reduce((acc, item) => {
-        acc[item.tipo] = { orden: item.orden, metodo: item.metodo };
-        return acc;
-      }, {} as Record<string, { orden: number; metodo: string }>);
-      setLocalOrdenes(ordenesMap);
-    }
-  }, [ordenLista]);
+    // Espera a que ambas listas estén cargadas para evitar actualizaciones de estado parciales
+    if (isLoadingLista || isLoadingOrden) return;
+
+    const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
+
+    // 1. Construye el estado inicial a partir de todos los 'tipos' únicos encontrados en la lista principal
+    tiposUnicos.forEach(tipo => {
+        let baseOrder = 99; // Orden por defecto, agrupa con "Voluntarios(as)"
+        const defaultRule = defaultOrderRules[tipo];
+
+        if (defaultRule) {
+            baseOrder = defaultRule.orden;
+        } else if (tipo.startsWith('Teniente')) {
+            baseOrder = 4; // Orden base para todos los roles 'Teniente'
+        } else if (tipo.startsWith('Ayudante')) {
+            baseOrder = 12; // Orden base para todos los roles 'Ayudante'
+        }
+        
+        newOrdenes[tipo] = { orden: baseOrder, metodo: 'apellidos_asc' };
+    });
+
+    // 2. Sobrescribe el estado inicial con cualquier orden específico guardado en Firestore.
+    // `ordenLista` está garantizado como un array (o vacío) porque isLoadingOrden es false.
+    ordenLista?.forEach(item => {
+        // Esto asegura que solo usemos órdenes guardadas para tipos que todavía existen.
+        if (tiposUnicos.includes(item.tipo)) { 
+            newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
+        }
+    });
+
+    setLocalOrdenes(newOrdenes);
+
+  }, [isLoadingLista, isLoadingOrden, tiposUnicos, ordenLista]);
 
   // Only updates local state, does not write to DB
   const handleLocalUpdate = (tipo: string, field: 'orden' | 'metodo', value: string | number) => {
@@ -122,7 +164,7 @@ export function OrdenListaManager() {
   return (
     <div className="space-y-4">
         <div className="space-y-3">
-            {tiposUnicos.sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => (
+            {Object.keys(localOrdenes).sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => (
                 <div key={tipo} className="flex items-center gap-2 p-2 border rounded-md">
                 <Input
                     type="number"
