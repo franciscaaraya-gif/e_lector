@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { collection, query, doc, setDoc } from 'firebase/firestore';
+import { collection, query, doc, writeBatch } from 'firebase/firestore';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { ListaCompletaItem, OrdenLista } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,12 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ListOrdered } from 'lucide-react';
+import { ListOrdered, Save, Loader2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export function OrdenListaManager() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   const listaCompletaQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -47,38 +49,51 @@ export function OrdenListaManager() {
     }
   }, [ordenLista]);
 
-  const handleUpdate = async (tipo: string, field: 'orden' | 'metodo', value: string | number) => {
-    if (!firestore || !user) return;
-    
+  // Only updates local state, does not write to DB
+  const handleLocalUpdate = (tipo: string, field: 'orden' | 'metodo', value: string | number) => {
     const updatedState = {
       ...localOrdenes,
       [tipo]: {
-        ...localOrdenes[tipo],
+        ...(localOrdenes[tipo] ?? { orden: 0, metodo: 'apellidos_asc' }), // Ensure object exists
         [field]: value
       }
     };
     setLocalOrdenes(updatedState);
-
-    const docRef = doc(firestore, 'admins', user.uid, 'orden_lista', tipo);
-    const dataToSet = {
-        tipo: tipo,
-        orden: updatedState[tipo]?.orden ?? 0,
-        metodo: updatedState[tipo]?.metodo ?? 'apellidos_asc',
-        adminId: user.uid
-    };
-
+  };
+  
+  // Saves all local changes to Firestore
+  const handleSaveOrder = async () => {
+    if (!firestore || !user) return;
+    setIsSaving(true);
+    
     try {
-      await setDoc(docRef, dataToSet, { merge: true });
-      toast({
-        title: 'Orden actualizado',
-        description: `La configuración para "${tipo}" se ha guardado.`,
-      });
+        const batch = writeBatch(firestore);
+        
+        Object.keys(localOrdenes).forEach(tipo => {
+            const docRef = doc(firestore, 'admins', user.uid, 'orden_lista', tipo);
+            const dataToSet = {
+                tipo: tipo,
+                orden: localOrdenes[tipo]?.orden ?? 0,
+                metodo: localOrdenes[tipo]?.metodo ?? 'apellidos_asc',
+                adminId: user.uid
+            };
+            batch.set(docRef, dataToSet, { merge: true });
+        });
+        
+        await batch.commit();
+
+        toast({
+            title: '¡Orden Guardado!',
+            description: 'Se ha guardado la nueva configuración de orden para todas las listas.',
+        });
     } catch (e) {
       toast({
         variant: 'destructive',
-        title: 'Error',
+        title: 'Error al Guardar',
         description: 'No se pudo guardar la configuración de orden.',
       });
+    } finally {
+        setIsSaving(false);
     }
   };
 
@@ -92,11 +107,11 @@ export function OrdenListaManager() {
     );
   }
 
-  if (!listaCompleta || listaCompleta.length === 0) {
+  if (!listaCompleta || tiposUnicos.length === 0) {
     return (
         <Alert>
             <ListOrdered className="h-4 w-4" />
-            <AlertTitle>No hay datos</AlertTitle>
+            <AlertTitle>No hay datos para ordenar</AlertTitle>
             <AlertDescription>
                 Primero debes agregar un listado de voluntarios para poder configurar el orden.
             </AlertDescription>
@@ -105,32 +120,38 @@ export function OrdenListaManager() {
   }
 
   return (
-    <div className="space-y-3">
-        {tiposUnicos.sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => (
-            <div key={tipo} className="flex items-center gap-2 p-2 border rounded-md">
-            <Input
-                type="number"
-                className="w-16 h-9"
-                placeholder="Orden"
-                value={localOrdenes[tipo]?.orden ?? ''}
-                onChange={(e) => handleUpdate(tipo, 'orden', parseInt(e.target.value, 10) || 0)}
-            />
-            <span className="flex-1 text-sm font-medium">{tipo}</span>
-            <Select
-                value={localOrdenes[tipo]?.metodo ?? 'apellidos_asc'}
-                onValueChange={(value) => handleUpdate(tipo, 'metodo', value)}
-            >
-                <SelectTrigger className="w-48 h-9">
-                <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                <SelectItem value="apellidos_asc">Ascendente (Apellidos)</SelectItem>
-                <SelectItem value="carga">Orden de Carga</SelectItem>
-                <SelectItem value="registro">Número de Registro</SelectItem>
-                </SelectContent>
-            </Select>
-            </div>
-        ))}
+    <div className="space-y-4">
+        <div className="space-y-3">
+            {tiposUnicos.sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => (
+                <div key={tipo} className="flex items-center gap-2 p-2 border rounded-md">
+                <Input
+                    type="number"
+                    className="w-16 h-9"
+                    placeholder="Orden"
+                    value={localOrdenes[tipo]?.orden ?? ''}
+                    onChange={(e) => handleLocalUpdate(tipo, 'orden', parseInt(e.target.value, 10) || 0)}
+                />
+                <span className="flex-1 text-sm font-medium">{tipo}</span>
+                <Select
+                    value={localOrdenes[tipo]?.metodo ?? 'apellidos_asc'}
+                    onValueChange={(value) => handleLocalUpdate(tipo, 'metodo', value)}
+                >
+                    <SelectTrigger className="w-48 h-9">
+                    <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                    <SelectItem value="apellidos_asc">Ascendente (Apellidos)</SelectItem>
+                    <SelectItem value="carga">Orden de Carga</SelectItem>
+                    <SelectItem value="registro">Número de Registro</SelectItem>
+                    </SelectContent>
+                </Select>
+                </div>
+            ))}
+        </div>
+        <Button onClick={handleSaveOrder} disabled={isSaving || Object.keys(localOrdenes).length === 0} className="w-full">
+            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+            Actualizar Orden
+        </Button>
     </div>
   );
 }
