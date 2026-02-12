@@ -254,7 +254,7 @@
         "metodo": {
           "type": "string",
           "description": "The sorting method for members within this type.",
-          "enum": ["apellidos_asc", "carga", "registro"]
+          "enum": ["apellidos_asc", "carga", "registro", "jerarquia"]
         }
       },
       "required": ["id", "adminId", "tipo", "orden", "metodo"]

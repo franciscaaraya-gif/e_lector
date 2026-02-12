@@ -87,7 +87,7 @@ export type OrdenLista = {
   adminId: string;
   tipo: string;
   orden: number;
-  metodo: 'apellidos_asc' | 'carga' | 'registro';
+  metodo: 'apellidos_asc' | 'carga' | 'registro' | 'jerarquia';
 };
 
 export type PollTemplate = {

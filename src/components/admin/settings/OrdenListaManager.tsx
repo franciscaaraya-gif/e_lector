@@ -17,6 +17,7 @@ export function OrdenListaManager() {
   const { user } = useUser();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+  const [numericGroupedTipos, setNumericGroupedTipos] = useState<Set<string>>(new Set());
 
   const listaCompletaQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -43,23 +44,29 @@ export function OrdenListaManager() {
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
     
-    // Regex to find roles ending with a number (e.g., "Teniente 1", "Ayudante 2º", "Comandante tercero")
     const cardinalRegex = /(.+?)\s+(\d+|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo|1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|[1-9][0-9]?[ºª°]?)$/i;
 
     const groupedTipos = new Set<string>();
+    const numericGroups = new Set<string>();
 
     tiposUnicos.forEach(tipo => {
         const match = tipo.match(cardinalRegex);
         if (match && match[1]) {
-            groupedTipos.add(match[1].trim());
+            const groupName = match[1].trim();
+            groupedTipos.add(groupName);
+            numericGroups.add(groupName);
         } else {
             groupedTipos.add(tipo.trim());
         }
     });
 
+    setNumericGroupedTipos(numericGroups);
+
     Array.from(groupedTipos).forEach(tipo => {
         let baseOrder: number;
         const lowerTipo = tipo.toLowerCase().trim();
+
+        const defaultMetodo = numericGroups.has(tipo) ? 'jerarquia' : 'apellidos_asc';
 
         if (lowerTipo === 'martir') {
             baseOrder = 1;
@@ -97,19 +104,21 @@ export function OrdenListaManager() {
             baseOrder = 99; // Default for anything else
         }
         
-        newOrdenes[tipo] = { orden: baseOrder, metodo: 'apellidos_asc' };
+        newOrdenes[tipo] = { orden: baseOrder, metodo: defaultMetodo };
     });
 
     // Override with saved data from Firestore
     ordenLista?.forEach(item => {
-        // Find the group this item belongs to
         const match = item.tipo.match(cardinalRegex);
         const groupName = match && match[1] ? match[1].trim() : item.tipo.trim();
         
         if (newOrdenes[groupName]) {
-            // Apply saved settings to the entire group
-            newOrdenes[groupName] = { orden: item.orden, metodo: item.metodo };
-        } else if (newOrdenes[item.tipo]) { // For non-grouped items
+            if (numericGroups.has(groupName)) {
+                newOrdenes[groupName].orden = item.orden;
+            } else {
+                newOrdenes[groupName] = { orden: item.orden, metodo: item.metodo };
+            }
+        } else if (newOrdenes[item.tipo]) { 
             newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
         }
     });
@@ -118,7 +127,6 @@ export function OrdenListaManager() {
 
   }, [isLoadingLista, isLoadingOrden, tiposUnicos, ordenLista]);
 
-  // Only updates local state, does not write to DB
   const handleLocalUpdate = (tipo: string, field: 'orden' | 'metodo', value: string | number) => {
     const updatedState = {
       ...localOrdenes,
@@ -130,7 +138,6 @@ export function OrdenListaManager() {
     setLocalOrdenes(updatedState);
   };
   
-  // Saves all local changes to Firestore
   const handleSaveOrder = async () => {
     if (!firestore || !user) return;
     setIsSaving(true);
@@ -191,7 +198,9 @@ export function OrdenListaManager() {
   return (
     <div className="space-y-4">
         <div className="space-y-3">
-            {Object.keys(localOrdenes).sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => (
+            {Object.keys(localOrdenes).sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => {
+                const isNumericGroup = numericGroupedTipos.has(tipo);
+                return(
                 <div key={tipo} className="flex items-center gap-2 p-2 border rounded-md">
                 <Input
                     type="number"
@@ -204,18 +213,25 @@ export function OrdenListaManager() {
                 <Select
                     value={localOrdenes[tipo]?.metodo ?? 'apellidos_asc'}
                     onValueChange={(value) => handleLocalUpdate(tipo, 'metodo', value)}
+                    disabled={isNumericGroup}
                 >
                     <SelectTrigger className="w-48 h-9">
-                    <SelectValue />
+                        <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                    <SelectItem value="apellidos_asc">Ascendente (Apellidos)</SelectItem>
-                    <SelectItem value="carga">Orden de Carga</SelectItem>
-                    <SelectItem value="registro">Número de Registro</SelectItem>
+                        {isNumericGroup ? (
+                             <SelectItem value="jerarquia">Jerarquía</SelectItem>
+                        ): (
+                            <>
+                                <SelectItem value="apellidos_asc">Ascendente (Apellidos)</SelectItem>
+                                <SelectItem value="carga">Orden de Carga</SelectItem>
+                                <SelectItem value="registro">Número de Registro</SelectItem>
+                            </>
+                        )}
                     </SelectContent>
                 </Select>
                 </div>
-            ))}
+            )})}
         </div>
         <Button onClick={handleSaveOrder} disabled={isSaving || Object.keys(localOrdenes).length === 0} className="w-full">
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
