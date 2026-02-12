@@ -12,29 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ListOrdered, Save, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const defaultOrderRules: Record<string, { orden: number }> = {
-    'martir': { orden: 1 },
-    'Director': { orden: 2 },
-    'Capitán': { orden: 3 },
-    'Teniente 1': { orden: 4 },
-    'Teniente 2': { orden: 5 },
-    'Teniente 3': { orden: 6 },
-    // Los roles de Ayudante se agruparán en el orden 7
-    'Maquinista': { orden: 8 },
-    'Secretario': { orden: 9 },
-    'Tesorero': { orden: 10 },
-    'Intendente': { orden: 11 },
-    'Cirujano': { orden: 12 },
-    'Ayte. Comandancia': { orden: 13 },
-    'Miembro Honorario': { orden: 14 },
-    'Insp. Administración': { orden: 15 },
-    // Grupo para roles de consejero/activo
-    'Activo': { orden: 16 },
-    'Consejero de Disciplina': { orden: 16 },
-    'Honorario': { orden: 16 },
-    'Voluntarios(as)': { orden: 99 },
-};
-
 export function OrdenListaManager() {
   const firestore = useFirestore();
   const { user } = useUser();
@@ -67,18 +44,56 @@ export function OrdenListaManager() {
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
 
+    const cardinalMap: { [key: string]: number } = {
+        'primero': 1, 'segundo': 2, 'tercero': 3, 'cuarto': 4, 'quinto': 5,
+        '1': 1, '2': 2, '3': 3, '4': 4, '5': 5,
+    };
+    
+    const findCardinal = (str: string): number => {
+        const match = str.match(/(primero|segundo|tercero|cuarto|quinto|\d+)/i);
+        return match && cardinalMap[match[0].toLowerCase()] ? cardinalMap[match[0].toLowerCase()] : 0;
+    }
+    
     tiposUnicos.forEach(tipo => {
-        let baseOrder = 99; // Orden por defecto para "Voluntarios(as)" y otros no especificados
-        const defaultRule = defaultOrderRules[tipo];
+        let baseOrder: number;
+        const lowerTipo = tipo.toLowerCase();
 
-        if (defaultRule) {
-            baseOrder = defaultRule.orden;
-        } else if (tipo.startsWith('Teniente')) {
-            baseOrder = 6; // Agrupar con otros Tenientes si no está especificado (ej. Teniente 4)
-        } else if (tipo.startsWith('Ayudante') || tipo.startsWith('Ayte.')) {
-            baseOrder = 7; // Agrupar todos los roles de Ayudante después de los Tenientes
-        } else if (tipo === 'Activos' || tipo === 'Consejeros') {
-             baseOrder = 16; // Agrupar estos roles juntos
+        if (lowerTipo === 'martir') {
+            baseOrder = 1;
+        } else if (lowerTipo === 'director') {
+            baseOrder = 2;
+        } else if (lowerTipo === 'capitán') {
+            baseOrder = 3;
+        } else if (lowerTipo.includes('teniente')) {
+            const cardinal = findCardinal(tipo);
+            baseOrder = 4 + (cardinal > 0 ? cardinal / 100 : 0.99); // Group un-numbered ones at the end
+        } else if (lowerTipo.includes('ayudante') || lowerTipo.includes('ayte.')) {
+            if (lowerTipo.includes('comandancia')) {
+                baseOrder = 11;
+            } else if (lowerTipo.includes('administración')) {
+                 baseOrder = 14;
+            } else {
+                 const cardinal = findCardinal(tipo);
+                 baseOrder = 5 + (cardinal > 0 ? cardinal / 100 : 0.99);
+            }
+        } else if (lowerTipo === 'maquinista') {
+            baseOrder = 6;
+        } else if (lowerTipo === 'secretario') {
+            baseOrder = 7;
+        } else if (lowerTipo === 'tesorero') {
+            baseOrder = 8;
+        } else if (lowerTipo === 'intendente') {
+            baseOrder = 9;
+        } else if (lowerTipo === 'cirujano') {
+            baseOrder = 10;
+        } else if (lowerTipo === 'miembro honorario') {
+            baseOrder = 12;
+        } else if (lowerTipo === 'insp. administración') {
+            baseOrder = 13;
+        } else if (['activo', 'consejero de disciplina', 'honorario'].includes(lowerTipo)) {
+            baseOrder = 15;
+        } else {
+            baseOrder = 99; // Voluntarios and others
         }
         
         newOrdenes[tipo] = { orden: baseOrder, metodo: 'apellidos_asc' };
@@ -175,7 +190,7 @@ export function OrdenListaManager() {
                     className="w-16 h-9"
                     placeholder="Orden"
                     value={localOrdenes[tipo]?.orden ?? ''}
-                    onChange={(e) => handleLocalUpdate(tipo, 'orden', parseInt(e.target.value, 10) || 0)}
+                    onChange={(e) => handleLocalUpdate(tipo, 'orden', parseFloat(e.target.value) || 0)}
                 />
                 <span className="flex-1 text-sm font-medium">{tipo}</span>
                 <Select
