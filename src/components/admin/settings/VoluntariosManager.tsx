@@ -3,7 +3,7 @@
 import { useState, ChangeEvent, DragEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, writeBatch, query, where, doc } from 'firebase/firestore';
-import { FileUp, Loader2, Trash2, Users } from 'lucide-react';
+import { Copy, FileUp, Loader2, Trash2, Users } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,8 @@ import { ListaCompletaItem } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
 
@@ -38,6 +40,16 @@ export function VoluntariosManager() {
   }, [firestore, user]);
 
   const { data: bomberos, isLoading: isLoadingBomberos } = useCollection<ListaCompletaItem>(bomberosQuery);
+
+  const headers = "NOMBRES, APELLIDOS, C.I, REG.GENERAL, COMPAÑÍA, GRUPO SANGRE, DONANTE, ALERGIAS, CARGO, CALIDAD";
+
+  const copyHeaders = () => {
+      navigator.clipboard.writeText(headers);
+      toast({
+          title: "Encabezados copiados",
+          description: "Los encabezados requeridos para el archivo Excel han sido copiados.",
+      });
+  };
 
   const handleFile = (file: File) => {
     if (!file) return;
@@ -129,6 +141,19 @@ export function VoluntariosManager() {
   
   return (
     <div className="space-y-6">
+      <Alert>
+          <AlertTitle className="flex items-center justify-between text-sm">
+              <span>Encabezados para el archivo Excel</span>
+              <Button variant="ghost" size="sm" className="h-auto px-2 py-1" onClick={copyHeaders}>
+                  <Copy className="mr-2 h-3 w-3" /> Copiar
+              </Button>
+          </AlertTitle>
+          <AlertDescription className="pt-2">
+              <code className="relative rounded bg-muted px-2 py-1 font-mono text-xs font-semibold block overflow-x-auto">
+                  {headers}
+              </code>
+          </AlertDescription>
+      </Alert>
       <div
         className={cn("relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors", isDragging && "border-primary bg-primary/10")}
         onDrop={handleDrop} onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onClick={() => document.getElementById('voluntarios-file-upload')?.click()}

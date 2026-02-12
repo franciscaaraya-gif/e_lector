@@ -8,7 +8,7 @@ import { collection, query, where, addDoc, deleteDoc, doc } from 'firebase/fires
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Loader2, PlusCircle, Trash2, UserX } from 'lucide-react';
+import { Loader2, PlusCircle, UserX, X } from 'lucide-react';
 import { ListaCompletaItem } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
@@ -76,8 +76,38 @@ export function MartiresManager() {
 
   return (
     <div className="space-y-4">
+      <div className="space-y-2">
+        <h4 className="font-medium text-sm">Lista de Mártires</h4>
+        {isLoading && (
+          <div className="space-y-2">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+        )}
+        {!isLoading && martires && martires.length > 0 && (
+          <div className="border rounded-lg">
+            <ul className="divide-y">
+              {martires.map(martir => (
+                <li key={martir.id} className="flex items-center justify-between p-3">
+                  <span className="text-sm">{martir.nombres} {martir.apellidos}</span>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(martir.id, `${martir.nombres} ${martir.apellidos}`)}>
+                    <X className="h-4 w-4 text-destructive" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+         {!isLoading && (!martires || martires.length === 0) && (
+            <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg p-8">
+                <UserX className="h-8 w-8 mb-2" />
+                <p>No hay mártires en la lista.</p>
+                <p>Añade uno usando el formulario de abajo.</p>
+            </div>
+         )}
+      </div>
       <div className="border rounded-lg p-4 space-y-2">
-        <h4 className="font-medium text-sm">Añadir Nuevo Mártir</h4>
+        <h4 className="font-medium text-sm">Añadir Mártir</h4>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-2">
             <FormField
@@ -98,37 +128,6 @@ export function MartiresManager() {
             </Button>
           </form>
         </Form>
-      </div>
-
-      <div className="space-y-2">
-        <h4 className="font-medium text-sm">Lista de Mártires</h4>
-        {isLoading && (
-          <div className="space-y-2">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-          </div>
-        )}
-        {!isLoading && martires && martires.length > 0 && (
-          <div className="border rounded-lg">
-            <ul className="divide-y">
-              {martires.map(martir => (
-                <li key={martir.id} className="flex items-center justify-between p-3">
-                  <span className="text-sm">{martir.nombres} {martir.apellidos}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(martir.id, `${martir.nombres} ${martir.apellidos}`)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-         {!isLoading && (!martires || martires.length === 0) && (
-            <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground border-2 border-dashed rounded-lg p-8">
-                <UserX className="h-8 w-8 mb-2" />
-                <p>No hay mártires en la lista.</p>
-                <p>Añade uno usando el formulario de arriba.</p>
-            </div>
-         )}
       </div>
     </div>
   );
