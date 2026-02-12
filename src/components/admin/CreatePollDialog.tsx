@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useForm, useFieldArray, useController } from 'react-hook-form';
+import { useForm, useFieldArray, ControllerRenderProps } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { addDoc, collection, serverTimestamp, writeBatch, doc, query, where } from 'firebase/firestore';
@@ -53,13 +53,7 @@ const formSchema = z.object({
     path: ['maxSelections'],
 });
 
-
-const AutocompleteInput = ({ control, index, volunteers }: { control: any, index: number, volunteers: ListaCompletaItem[] }) => {
-    const { field } = useController({
-        control,
-        name: `options.${index}.text`
-    });
-
+const AutocompleteInput = ({ field, index, volunteers }: { field: ControllerRenderProps<z.infer<typeof formSchema>, `options.${number}.text`>, index: number, volunteers: ListaCompletaItem[] }) => {
     const [suggestions, setSuggestions] = useState<ListaCompletaItem[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -357,7 +351,7 @@ export function CreatePollDialog() {
                                 <GripVertical className="h-4 w-4 text-muted-foreground" />
                                 {isCargoElection ? (
                                     <AutocompleteInput
-                                        control={form.control}
+                                        field={formField}
                                         index={index}
                                         volunteers={volunteers || []}
                                     />
@@ -483,5 +477,3 @@ export function CreatePollDialog() {
     </Dialog>
   );
 }
-
-    
