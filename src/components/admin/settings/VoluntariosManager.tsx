@@ -36,7 +36,7 @@ export function VoluntariosManager() {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'admins', user.uid, 'lista_completa'),
-      where('tipo', '!=', 'Martir ')
+      where('tipo', 'not-in', ['Martir '])
     );
   }, [firestore, user]);
 
