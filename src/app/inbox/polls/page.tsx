@@ -37,7 +37,7 @@ function PollsInboxClient() {
         if (!auth || isAuthLoading || user) return;
 
         signInAnonymously(auth).catch(err => {
-            setError("Se requiere autenticación para ver tus encuestas.");
+            setError("Se requiere autenticación para ver tus votaciones.");
         });
     }, [auth, user, isAuthLoading]);
 
@@ -87,7 +87,7 @@ function PollsInboxClient() {
                 } else if(err.code === 'permission-denied') {
                      setError('Permiso denegado. Verifica que el ID de la sala y tu ID de votante sean correctos.');
                 } else {
-                    setError('No se pudieron cargar las encuestas. Inténtalo de nuevo más tarde.');
+                    setError('No se pudieron cargar las votaciones. Inténtalo de nuevo más tarde.');
                 }
             } finally {
                 setIsLoading(false);
@@ -111,7 +111,7 @@ function PollsInboxClient() {
                 <CardContent>
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>No se pudieron cargar las encuestas</AlertTitle>
+                        <AlertTitle>No se pudieron cargar las votaciones</AlertTitle>
                         <AlertDescription>{error}</AlertDescription>
                     </Alert>
                 </CardContent>
@@ -130,7 +130,7 @@ function PollsInboxClient() {
     return (
         <div className="w-full space-y-4">
              <div className="text-center">
-                <h1 className="text-2xl font-bold font-headline">Tus Encuestas Activas</h1>
+                <h1 className="text-2xl font-bold font-headline">Tus Votaciones Activas</h1>
                 <p className="text-muted-foreground">Sala: <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{salaId}</span></p>
                 <p className="text-muted-foreground">ID de Votante: <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{voterId}</span></p>
              </div>
@@ -141,7 +141,7 @@ function PollsInboxClient() {
                         <CardTitle>¡Todo listo por ahora!</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-muted-foreground">No tienes encuestas pendientes para votar en este momento.</p>
+                        <p className="text-muted-foreground">No tienes votaciones pendientes en este momento.</p>
                     </CardContent>
                 </Card>
             ) : (

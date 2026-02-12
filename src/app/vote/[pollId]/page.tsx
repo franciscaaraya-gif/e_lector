@@ -69,16 +69,16 @@ function VotePageClient() {
             try {
                 // Get adminId from public lookup
                 const lookupSnap = await getDoc(doc(firestore, 'poll-lookup', pollId));
-                if (!lookupSnap.exists()) throw new Error('Encuesta no encontrada o inválida.');
+                if (!lookupSnap.exists()) throw new Error('Votación no encontrada o inválida.');
                 const adminId = (lookupSnap.data() as PollLookup).adminId;
                 setAdminId(adminId);
 
                 // Get Poll data
                 const pollSnap = await getDoc(doc(firestore, 'admins', adminId, 'polls', pollId));
-                if (!pollSnap.exists()) throw new Error('Encuesta no encontrada o inválida.');
+                if (!pollSnap.exists()) throw new Error('Votación no encontrada o inválida.');
                 
                 const pollData = { id: pollSnap.id, ...pollSnap.data() } as Poll;
-                if (pollData.status !== 'active') throw new Error('Esta encuesta no se encuentra activa en este momento.');
+                if (pollData.status !== 'active') throw new Error('Esta votación no se encuentra activa en este momento.');
                 
                 setPoll(pollData);
 
@@ -87,19 +87,19 @@ function VotePageClient() {
                 const q = query(votersRef, where('voterId', '==', voterId), limit(1));
                 const voterSnap = await getDocs(q);
 
-                if (voterSnap.empty) throw new Error('No eres elegible para votar en esta encuesta, o tu ID de votante es incorrecto.');
+                if (voterSnap.empty) throw new Error('No eres elegible para votar en esta votación, o tu ID de votante es incorrecto.');
 
                 const voterDoc = voterSnap.docs[0];
                 const voterStatusData = voterDoc.data() as VoterStatus;
 
                 // CHECK 1: Has the voter already voted?
-                if (voterStatusData.hasVoted) throw new Error('Ya has emitido tu voto para esta encuesta.');
+                if (voterStatusData.hasVoted) throw new Error('Ya has emitido tu voto para esta votación.');
                 
                 // CHECK 2: Is the voter enabled for this poll?
                 // The `enabled` field is denormalized into the voter document for this check.
                 // It defaults to true if not present for backwards compatibility.
                 if (voterStatusData.enabled === false) {
-                    throw new Error('No tienes permitido votar en esta encuesta.');
+                    throw new Error('No tienes permitido votar en esta votación.');
                 }
 
                 setVoterDocId(voterDoc.id);
@@ -218,7 +218,7 @@ function VotePageClient() {
                 <CardHeader>
                     <CardTitle>No se puede votar</CardTitle>
                     <CardDescription>
-                        Ha ocurrido un problema al intentar cargar la encuesta.
+                        Ha ocurrido un problema al intentar cargar la votación.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

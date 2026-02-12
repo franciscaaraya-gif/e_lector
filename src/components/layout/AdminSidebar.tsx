@@ -47,11 +47,11 @@ export function AdminSidebar() {
             <SidebarMenuButton
               asChild
               isActive={pathname.startsWith('/admin/dashboard') || pathname.startsWith('/admin/polls')}
-              tooltip="Encuestas"
+              tooltip="Votaciones"
             >
               <Link href="/admin/dashboard">
                 <BarChart2 />
-                <span>Encuestas</span>
+                <span>Votaciones</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

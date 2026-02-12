@@ -46,7 +46,7 @@ export default function PollDetailsLoading() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users />Registro de Votantes</CardTitle>
-          <CardDescription>Una lista de votantes elegibles para esta encuesta y su estado de votación.</CardDescription>
+          <CardDescription>Una lista de votantes elegibles para esta votación y su estado de votación.</CardDescription>
         </CardHeader>
         <CardContent>
             {/* Mobile Skeleton */}

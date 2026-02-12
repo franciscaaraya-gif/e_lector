@@ -21,7 +21,7 @@ export default function Home() {
               href="/inbox"
               prefetch={false}
             >
-              Acceder a Encuesta
+              Ir a Votación
             </Link>
           </Button>
           <Button variant="outline" asChild>

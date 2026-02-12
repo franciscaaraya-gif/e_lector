@@ -108,7 +108,7 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
         <Card>
           <CardHeader>
               <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                  <CardTitle>Tus Encuestas</CardTitle>
+                  <CardTitle>Tus Votaciones</CardTitle>
                   <CreatePollDialog />
               </div>
           </CardHeader>
@@ -147,11 +147,11 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                     const noGroups = !groups || groups.length === 0;
                     return (
                         <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
-                        <h3 className="text-lg font-semibold">{noGroups ? "Primero crea un grupo" : "Aún no tienes encuestas"}</h3>
+                        <h3 className="text-lg font-semibold">{noGroups ? "Primero crea un grupo" : "Aún no tienes votaciones"}</h3>
                         <p className="text-muted-foreground text-sm max-w-md">
                             {noGroups
-                            ? "Para crear una encuesta, primero necesitas organizar a tus participantes en grupos de votantes."
-                            : "¡Es hora de crear tu primera encuesta para que tus grupos puedan votar!"
+                            ? "Para crear una votación, primero necesitas organizar a tus participantes en grupos de votantes."
+                            : "¡Es hora de crear tu primera votación para que tus grupos puedan votar!"
                             }
                         </p>
                         {noGroups && (
@@ -237,7 +237,7 @@ export default function DashboardPage() {
     setPollToDelete(null); // This closes the dialog, allowing Radix to animate out cleanly
 
     toast({
-        title: "Eliminando encuesta...",
+        title: "Eliminando votación...",
         description: `Por favor, espera un momento.`,
     });
 
@@ -251,8 +251,8 @@ export default function DashboardPage() {
         await batch.commit();
 
         toast({
-            title: "¡Encuesta Eliminada!",
-            description: `La encuesta "${pollToDeleteCopy.question}" se eliminó correctamente.`,
+            title: "¡Votación Eliminada!",
+            description: `La votación "${pollToDeleteCopy.question}" se eliminó correctamente.`,
         });
     } catch(error: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -262,7 +262,7 @@ export default function DashboardPage() {
         toast({
              variant: "destructive",
              title: "Error al eliminar",
-             description: "No se pudo eliminar la encuesta. Es posible que no tengas permisos."
+             description: "No se pudo eliminar la votación. Es posible que no tengas permisos."
         });
     }
   };
@@ -270,8 +270,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <CardHeader className="p-0">
-        <CardTitle className="text-3xl font-bold tracking-tight font-headline">Encuestas</CardTitle>
-        <CardDescription>Crea y administra tus encuestas de votación anónima.</CardDescription>
+        <CardTitle className="text-3xl font-bold tracking-tight font-headline">Votaciones</CardTitle>
+        <CardDescription>Crea y administra tus votaciones anónimas.</CardDescription>
       </CardHeader>
       
       <DashboardContents onPollDeleteClick={setPollToDelete} />
@@ -282,7 +282,7 @@ export default function DashboardPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Se eliminará permanentemente la encuesta
+                    Esta acción no se puede deshacer. Se eliminará permanentemente la votación
                     <span className="font-semibold"> {pollToDelete?.question}</span> y todos sus datos asociados.
                     Los votos no podrán ser recuperados.
                 </AlertDialogDescription>

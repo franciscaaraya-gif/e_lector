@@ -36,7 +36,7 @@ const formSchema = z.object({
     })
   ).min(2, 'Debe haber al menos 2 opciones.'),
   pollType: z.enum(['simple', 'multiple'], {
-    required_error: 'Debes seleccionar un tipo de encuesta.',
+    required_error: 'Debes seleccionar un tipo de votación.',
   }),
   maxSelections: z.coerce.number().optional(),
   groupId: z.string({ required_error: 'Debes seleccionar un grupo de votantes.' }),
@@ -181,8 +181,8 @@ export function CreatePollDialog() {
         await batch.commit();
 
         toast({
-            title: '¡Encuesta Creada!',
-            description: `La encuesta se asignó a ${enabledVoters.length} votantes del grupo "${selectedGroup.name}".`,
+            title: '¡Votación Creada!',
+            description: `La votación se asignó a ${enabledVoters.length} votantes del grupo "${selectedGroup.name}".`,
         });
 
         setOpen(false);
@@ -199,8 +199,8 @@ export function CreatePollDialog() {
         } else {
              toast({
                 variant: 'destructive',
-                title: 'Error al crear la encuesta',
-                description: error.message || 'No se pudo crear la encuesta. Revisa la consola para más detalles.'
+                title: 'Error al crear la votación',
+                description: error.message || 'No se pudo crear la votación. Revisa la consola para más detalles.'
             });
         }
     } finally {
@@ -213,14 +213,14 @@ export function CreatePollDialog() {
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto" disabled={groupsLoading || !voterGroups || voterGroups.length === 0}>
           <PlusCircle className="mr-2 h-4 w-4" />
-          Crear Encuesta
+          Crear Votación
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Crear Nueva Encuesta</DialogTitle>
+          <DialogTitle>Crear Nueva Votación</DialogTitle>
           <DialogDescription>
-            Configura los detalles de tu encuesta. Se creará como "activa" inmediatamente.
+            Configura los detalles de tu votación. Se creará como "activa" inmediatamente.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -241,7 +241,7 @@ export function CreatePollDialog() {
                 </SelectContent>
               </Select>
               <FormDescription>
-                Seleccionar una plantilla llenará automáticamente el tipo de encuesta y otras opciones.
+                Seleccionar una plantilla llenará automáticamente el tipo de votación y otras opciones.
               </FormDescription>
             </FormItem>
             
@@ -250,7 +250,7 @@ export function CreatePollDialog() {
               name="question"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Pregunta de la Encuesta</FormLabel>
+                  <FormLabel>Pregunta de la Votación</FormLabel>
                   <FormControl>
                     <Input placeholder="Ej: ¿Cuál es tu color favorito?" {...field} disabled={isLoading} />
                   </FormControl>
@@ -300,7 +300,7 @@ export function CreatePollDialog() {
               name="pollType"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabel>Tipo de Encuesta</FormLabel>
+                  <FormLabel>Tipo de Votación</FormLabel>
                   <FormControl>
                     <RadioGroup
                       onValueChange={field.onChange}
@@ -369,7 +369,7 @@ export function CreatePollDialog() {
                     </SelectContent>
                   </Select>
                    <FormDescription>
-                      Este es el grupo de personas que podrá votar en la encuesta.
+                      Este es el grupo de personas que podrá votar en la votación.
                     </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -382,7 +382,7 @@ export function CreatePollDialog() {
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Encuesta
+                Crear Votación
               </Button>
             </DialogFooter>
           </form>

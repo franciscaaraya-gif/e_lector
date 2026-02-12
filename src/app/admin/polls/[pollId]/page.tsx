@@ -85,7 +85,7 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Users />Registro de Votantes</CardTitle>
           <CardDescription>
-            Una lista de votantes elegibles para esta encuesta y su estado de votación.
+            Una lista de votantes elegibles para esta votación y su estado de votación.
             Copia el enlace y envíalo a cada votante.
           </CardDescription>
         </CardHeader>
@@ -199,7 +199,7 @@ export default function PollDetailsPage() {
   const copyPollUrl = () => {
     if (!pollUrl) return;
     navigator.clipboard.writeText(pollUrl);
-    toast({ title: 'Enlace de la encuesta copiado!' });
+    toast({ title: 'Enlace de la votación copiado!' });
   };
   
   const handleStatusChangeConfirm = async () => {
@@ -212,7 +212,7 @@ export default function PollDetailsPage() {
         await updateDoc(pollRef, { status: newStatus });
         toast({
             title: "Estado Actualizado",
-            description: `La encuesta ahora está cerrada.`,
+            description: `La votación ahora está cerrada.`,
         });
     } catch (error) {
         const permissionError = new FirestorePermissionError({
@@ -234,9 +234,9 @@ export default function PollDetailsPage() {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Error al cargar la encuesta</CardTitle>
+                <CardTitle>Error al cargar la votación</CardTitle>
                 <CardDescription>
-                    No se pudo cargar la encuesta. Es posible que no exista o no tengas permiso para verla.
+                    No se pudo cargar la votación. Es posible que no exista o no tengas permiso para verla.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -251,7 +251,7 @@ export default function PollDetailsPage() {
   return (
     <div className="space-y-6">
         <div className='flex items-center justify-between'>
-            <h1 className="text-2xl font-bold font-headline">Detalles de la Encuesta</h1>
+            <h1 className="text-2xl font-bold font-headline">Detalles de la Votación</h1>
             <Button asChild variant="outline">
                 <Link href="/admin/dashboard">Volver al Panel</Link>
             </Button>
@@ -266,7 +266,7 @@ export default function PollDetailsPage() {
             </div>
             <div className="flex items-center space-x-2 shrink-0">
                 {poll.status === 'active' && (
-                    <Button onClick={() => setConfirmAlertOpen(true)} variant="destructive">Cerrar Encuesta</Button>
+                    <Button onClick={() => setConfirmAlertOpen(true)} variant="destructive">Cerrar Votación</Button>
                 )}
                 <Badge variant={statusVariant[poll.status] || 'secondary'} className="capitalize">
                     {statusText[poll.status] || poll.status}
@@ -293,7 +293,7 @@ export default function PollDetailsPage() {
                         {pollUrl && (
                             <Image 
                                 src={`https://api.qrserver.com/v1/create-qr-code/?size=128x128&data=${encodeURIComponent(pollUrl)}`}
-                                alt="QR Code para la encuesta"
+                                alt="QR Code para la votación"
                                 width={128}
                                 height={128}
                                 className='rounded-md'
@@ -310,7 +310,7 @@ export default function PollDetailsPage() {
                              {pollUrl && (
                                 <Image 
                                     src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(pollUrl)}`}
-                                    alt="QR Code para la encuesta"
+                                    alt="QR Code para la votación"
                                     width={300}
                                     height={300}
                                     className='rounded-lg border p-2'
@@ -342,7 +342,7 @@ export default function PollDetailsPage() {
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Al cerrar la encuesta, se detendrá la votación y podrás ver los resultados. ¿Deseas continuar?
+                    Al cerrar la votación, se detendrá el proceso y podrás ver los resultados. ¿Deseas continuar?
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

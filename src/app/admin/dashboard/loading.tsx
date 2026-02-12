@@ -31,10 +31,10 @@ export default function DashboardLoading() {
         <Card>
             <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                    <CardTitle>Tus Encuestas</CardTitle>
+                    <CardTitle>Tus Votaciones</CardTitle>
                     <Button disabled className="w-full sm:w-auto">
                         <PlusCircle className="mr-2 h-4 w-4" />
-                        Crear Encuesta
+                        Crear Votación
                     </Button>
                 </div>
             </CardHeader>

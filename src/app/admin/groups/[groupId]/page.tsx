@@ -70,7 +70,7 @@ export default function GroupDetailsPage() {
 
         toast({
             title: "Estado del votante actualizado",
-            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${pollsCheckedCount} encuesta(s) activa(s).`,
+            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${pollsCheckedCount} votación(es) activa(s).`,
         });
     } catch (err: any) {
         let description = "No se pudo cambiar el estado del votante.";

@@ -73,7 +73,7 @@ function VoterInboxForm() {
                 Bandeja de Votación
             </CardTitle>
             <CardDescription>
-                Selecciona la sala de votación e ingresa tu ID de votante para ver tus encuestas.
+                Selecciona la sala de votación e ingresa tu ID de votante para ver tus votaciones pendientes.
             </CardDescription>
             </CardHeader>
 
@@ -149,7 +149,7 @@ function VoterInboxForm() {
                     {isSubmitting && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     )}
-                    Ver mis encuestas
+                    Ver mis votaciones
                 </Button>
                 </form>
             </Form>

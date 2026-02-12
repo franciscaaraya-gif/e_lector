@@ -78,7 +78,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>Resultados de la Encuesta</DialogTitle>
+                    <DialogTitle>Resultados de la Votación</DialogTitle>
                     <DialogDescription className="truncate">
                        {poll.question}
                     </DialogDescription>
@@ -91,7 +91,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                         <Skeleton className="h-8 w-3/4" />
                     </div>
                  )}
-                 {!isLoading && votes?.length === 0 && <p className="text-center text-muted-foreground pt-16">Aún no hay votos para esta encuesta.</p>}
+                 {!isLoading && votes?.length === 0 && <p className="text-center text-muted-foreground pt-16">Aún no hay votos para esta votación.</p>}
                  {!isLoading && votes && votes.length > 0 && (
                     <ChartContainer config={chartConfig} className="w-full h-full">
                         <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10, right: 30 }}>
