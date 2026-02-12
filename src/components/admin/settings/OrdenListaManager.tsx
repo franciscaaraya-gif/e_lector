@@ -35,13 +35,19 @@ export function OrdenListaManager() {
 
   const tiposUnicos = useMemo(() => {
     if (!listaCompleta) return [];
-    const allTipos = listaCompleta.map(item => item.tipo).filter(Boolean);
-    
+    return Array.from(new Set(listaCompleta.map(item => item.tipo).filter(Boolean)));
+  }, [listaCompleta]);
+
+  useEffect(() => {
+    if (isLoadingLista || isLoadingOrden) return;
+
+    const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
+
     const cardinalRegex = /(.+?)\s+(\d+([.ºª°])?|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo)$/i;
     
     const groupedTipos = new Set<string>();
 
-    allTipos.forEach(tipo => {
+    tiposUnicos.forEach(tipo => {
         const match = tipo.match(cardinalRegex);
         if (match && match[1]) {
             groupedTipos.add(match[1].trim());
@@ -50,15 +56,7 @@ export function OrdenListaManager() {
         }
     });
 
-    return Array.from(groupedTipos);
-  }, [listaCompleta]);
-
-  useEffect(() => {
-    if (isLoadingLista || isLoadingOrden) return;
-
-    const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
-
-    tiposUnicos.forEach(tipo => {
+    Array.from(groupedTipos).forEach(tipo => {
         let baseOrder: number;
         const lowerTipo = tipo.toLowerCase();
 
@@ -70,10 +68,8 @@ export function OrdenListaManager() {
             baseOrder = 3;
         } else if (lowerTipo === 'teniente') {
             baseOrder = 4;
-        } else if (lowerTipo.startsWith('ayudante') || lowerTipo.startsWith('ayte.')) {
-             if (lowerTipo.includes('administración')) baseOrder = 14;
-             else if (lowerTipo.includes('comandancia')) baseOrder = 11;
-             else baseOrder = 5; // General ayudantes
+        } else if (lowerTipo === 'ayudante') {
+            baseOrder = 5;
         } else if (lowerTipo === 'maquinista') {
             baseOrder = 6;
         } else if (lowerTipo === 'secretario') {
@@ -84,12 +80,18 @@ export function OrdenListaManager() {
             baseOrder = 9;
         } else if (lowerTipo === 'cirujano') {
             baseOrder = 10;
-        } else if (lowerTipo === 'miembro honorario') {
-            baseOrder = 12;
         } else if (lowerTipo === 'insp. administración') {
+            baseOrder = 11;
+        } else if (lowerTipo === 'ayte. administración') {
+            baseOrder = 12;
+        } else if (lowerTipo === 'insp. comandancia') {
             baseOrder = 13;
-        } else if (['activo', 'consejero de disciplina', 'honorario', 'voluntarios'].includes(lowerTipo)) {
+        } else if (lowerTipo === 'ayte. comandancia') {
+            baseOrder = 14;
+        } else if (lowerTipo === 'miembro honorario') {
             baseOrder = 15;
+        } else if (['activo', 'consejero de disciplina', 'honorario', 'consejero de administración'].includes(lowerTipo)) {
+            baseOrder = 16;
         } else {
             baseOrder = 99; // Default for anything else
         }
@@ -99,7 +101,14 @@ export function OrdenListaManager() {
 
     // Override with saved data from Firestore
     ordenLista?.forEach(item => {
-        if (newOrdenes[item.tipo]) { 
+        // Find the group this item belongs to
+        const match = item.tipo.match(cardinalRegex);
+        const groupName = match && match[1] ? match[1].trim() : item.tipo;
+        
+        if (newOrdenes[groupName]) {
+            // Apply saved settings to the entire group
+            newOrdenes[groupName] = { orden: item.orden, metodo: item.metodo };
+        } else if (newOrdenes[item.tipo]) { // For non-grouped items
             newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
         }
     });
