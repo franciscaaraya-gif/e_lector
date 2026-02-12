@@ -42,9 +42,10 @@ export function OrdenListaManager() {
     if (isLoadingLista || isLoadingOrden) return;
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
-
-    const cardinalRegex = /(.+?)\s+(\d+([.ºª°])?|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo)$/i;
     
+    // Regex to find roles ending with a number (e.g., "Teniente 1", "Ayudante 2º", "Comandante tercero")
+    const cardinalRegex = /(.+?)\s+(\d+|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo|1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|[1-9][0-9]?[ºª°]?)$/i;
+
     const groupedTipos = new Set<string>();
 
     tiposUnicos.forEach(tipo => {
@@ -52,13 +53,13 @@ export function OrdenListaManager() {
         if (match && match[1]) {
             groupedTipos.add(match[1].trim());
         } else {
-            groupedTipos.add(tipo);
+            groupedTipos.add(tipo.trim());
         }
     });
 
     Array.from(groupedTipos).forEach(tipo => {
         let baseOrder: number;
-        const lowerTipo = tipo.toLowerCase();
+        const lowerTipo = tipo.toLowerCase().trim();
 
         if (lowerTipo === 'martir') {
             baseOrder = 1;
@@ -103,7 +104,7 @@ export function OrdenListaManager() {
     ordenLista?.forEach(item => {
         // Find the group this item belongs to
         const match = item.tipo.match(cardinalRegex);
-        const groupName = match && match[1] ? match[1].trim() : item.tipo;
+        const groupName = match && match[1] ? match[1].trim() : item.tipo.trim();
         
         if (newOrdenes[groupName]) {
             // Apply saved settings to the entire group

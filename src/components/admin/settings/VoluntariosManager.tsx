@@ -36,7 +36,7 @@ export function VoluntariosManager() {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'admins', user.uid, 'lista_completa'),
-      where('tipo', '!=', 'martir')
+      where('tipo', '!=', 'Martir ')
     );
   }, [firestore, user]);
 
@@ -156,7 +156,7 @@ export function VoluntariosManager() {
         const batch = writeBatch(firestore);
         const collectionRef = collection(firestore, 'admins', user.uid, 'lista_completa');
         
-        const q = query(collectionRef, where('tipo', '!=', 'martir'));
+        const q = query(collectionRef, where('tipo', '!=', 'Martir '));
         const snapshot = await getDocs(q);
         snapshot.docs.forEach(doc => {
             batch.delete(doc.ref);

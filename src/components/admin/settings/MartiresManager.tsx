@@ -29,7 +29,7 @@ export function MartiresManager() {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'admins', user.uid, 'lista_completa'),
-      where('tipo', '==', 'martir')
+      where('tipo', '==', 'Martir ')
     );
   }, [firestore, user]);
 
@@ -53,7 +53,7 @@ export function MartiresManager() {
         adminId: user.uid,
         nombres: nombres || apellidos, 
         apellidos: nombres ? apellidos : '',
-        tipo: 'martir',
+        tipo: 'Martir ',
       });
       toast({ title: 'Mártir añadido', description: `"${values.fullName}" se ha añadido a la lista.` });
       form.reset();
