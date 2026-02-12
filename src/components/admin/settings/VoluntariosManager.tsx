@@ -3,7 +3,7 @@
 import { useState, ChangeEvent, DragEvent } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, writeBatch, query, where, doc, getDocs } from 'firebase/firestore';
-import { Copy, FileUp, Loader2, Trash2, Users } from 'lucide-react';
+import { Copy, FileUp, Loader2, Trash2, Users, AlertTriangle } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,15 +31,15 @@ export function VoluntariosManager() {
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const bomberosQuery = useMemoFirebase(() => {
+  const personalQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return query(
       collection(firestore, 'admins', user.uid, 'lista_completa'),
-      where('tipo', '==', 'Bombero')
+      where('tipo', '!=', 'martir')
     );
   }, [firestore, user]);
 
-  const { data: bomberos, isLoading: isLoadingBomberos } = useCollection<ListaCompletaItem>(bomberosQuery);
+  const { data: personal, isLoading: isLoadingPersonal } = useCollection<ListaCompletaItem>(personalQuery);
 
   const headers = "Registro,Rut,Digito,Nombre,Segundo Nombre,Primer Apellido,Segundo Apellido,Sangre Grupo,Sangre Rh,Calidad,Cargo";
 
@@ -187,6 +187,13 @@ export function VoluntariosManager() {
               </code>
           </AlertDescription>
       </Alert>
+        <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>Atención</AlertTitle>
+            <AlertDescription>
+            Al cargar un nuevo archivo, se **reemplazará completamente** la lista de personal existente (excepto los mártires).
+            </AlertDescription>
+        </Alert>
       <div
         className={cn("relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors", isDragging && "border-primary bg-primary/10")}
         onDrop={handleDrop} onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onClick={() => document.getElementById('voluntarios-file-upload')?.click()}
@@ -211,7 +218,7 @@ export function VoluntariosManager() {
                 </Button>
             </div>
           </div>
-           <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-mono text-xs bg-muted p-1 rounded'>{fileName}</span>. <span className='font-semibold'>Esta acción reemplazará la lista de voluntarios existente.</span></p>
+           <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-mono text-xs bg-muted p-1 rounded'>{fileName}</span>.</p>
           <ScrollArea className="h-60 border rounded-md">
             <Table>
               <TableHeader>
@@ -236,14 +243,14 @@ export function VoluntariosManager() {
       )}
 
       <div className="space-y-4 pt-6 border-t">
-        <h3 className="text-lg font-semibold flex items-center gap-2"><Users /> Listado de Bomberos</h3>
-        {isLoadingBomberos && (
+        <h3 className="text-lg font-semibold flex items-center gap-2"><Users /> Listado del Personal</h3>
+        {isLoadingPersonal && (
             <div className='border rounded-lg p-4'>
                 <Skeleton className='h-8 w-full mb-2'/>
                 <Skeleton className='h-8 w-full'/>
             </div>
         )}
-        {!isLoadingBomberos && bomberos && bomberos.length > 0 && (
+        {!isLoadingPersonal && personal && personal.length > 0 && (
             <Table>
                 <TableHeader>
                     <TableRow>
@@ -254,19 +261,19 @@ export function VoluntariosManager() {
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {bomberos.map(b => (
-                        <TableRow key={b.id}>
-                            <TableCell>{b.regGeneral}</TableCell>
-                            <TableCell>{b.apellidos}</TableCell>
-                            <TableCell>{b.nombres}</TableCell>
-                            <TableCell>{b.tipo}</TableCell>
+                    {personal.map(p => (
+                        <TableRow key={p.id}>
+                            <TableCell>{p.regGeneral}</TableCell>
+                            <TableCell>{p.apellidos}</TableCell>
+                            <TableCell>{p.nombres}</TableCell>
+                            <TableCell>{p.tipo}</TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
             </Table>
         )}
-        {!isLoadingBomberos && (!bomberos || bomberos.length === 0) && (
-            <p className='text-sm text-muted-foreground text-center py-4'>No se han cargado voluntarios con el tipo "Bombero".</p>
+        {!isLoadingPersonal && (!personal || personal.length === 0) && (
+            <p className='text-sm text-muted-foreground text-center py-4'>No se ha cargado personal. Utiliza el formulario de arriba para importar una lista.</p>
         )}
       </div>
     </div>
