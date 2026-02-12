@@ -189,6 +189,24 @@ service cloud.firestore {
         match /lista_completa/{itemId} {
             allow read, write: if isOwner(adminId);
         }
+
+        /**
+         * @description Manages the display order rules for member types.
+         * @path /admins/{adminId}/orden_lista/{ordenId}
+         * @allow (read, write) Only the admin owner can manage their ordering rules.
+         */
+        match /orden_lista/{ordenId} {
+            allow read, write: if isOwner(adminId);
+        }
+        
+        /**
+         * @description Manages reusable poll templates.
+         * @path /admins/{adminId}/poll_templates/{templateId}
+         * @allow (read, write) Only the admin owner can manage their poll templates.
+         */
+        match /poll_templates/{templateId} {
+            allow read, write: if isOwner(adminId);
+        }
     }
     
     /**

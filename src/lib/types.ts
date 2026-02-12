@@ -81,3 +81,19 @@ export type ListaCompletaItem = {
   cargo?: string;
   calidad?: string;
 };
+
+export type OrdenLista = {
+  id: string;
+  adminId: string;
+  tipo: string;
+  orden: number;
+  metodo: 'apellidos_asc' | 'carga' | 'registro';
+};
+
+export type PollTemplate = {
+    id: string;
+    adminId: string;
+    name: string;
+    pollType: 'simple' | 'multiple';
+    maxSelections?: number;
+};

@@ -241,6 +241,36 @@
         "calidad": { "type": "string" }
       },
       "required": ["id", "adminId", "tipo"]
+    },
+    "OrdenLista": {
+      "title": "Orden Lista",
+      "type": "object",
+      "description": "Defines the display order and sorting method for a specific type of member.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the ordering rule." },
+        "adminId": { "type": "string", "description": "The ID of the admin who owns this rule." },
+        "tipo": { "type": "string", "description": "The member type this rule applies to (e.g., 'Bombero')." },
+        "orden": { "type": "number", "description": "The numerical order for display, lower numbers first." },
+        "metodo": {
+          "type": "string",
+          "description": "The sorting method for members within this type.",
+          "enum": ["apellidos_asc", "carga", "registro"]
+        }
+      },
+      "required": ["id", "adminId", "tipo", "orden", "metodo"]
+    },
+    "PollTemplate": {
+      "title": "Poll Template",
+      "type": "object",
+      "description": "Represents a reusable template for a standard poll.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the template." },
+        "adminId": { "type": "string", "description": "The ID of the admin who owns this template." },
+        "name": { "type": "string", "description": "The name or title of the poll template." },
+        "pollType": { "type": "string", "enum": ["simple", "multiple"] },
+        "maxSelections": { "type": "number", "description": "Maximum selections for a multiple choice poll." }
+      },
+      "required": ["id", "adminId", "name", "pollType"]
     }
   },
   "auth": {
@@ -367,6 +397,30 @@
           "params": [
             { "name": "adminId", "description": "Admin's UID." },
             { "name": "itemId", "description": "Unique ID for the list item." }
+          ]
+        }
+      },
+      {
+        "path": "/admins/{adminId}/orden_lista/{ordenId}",
+        "definition": {
+          "entityName": "OrdenLista",
+          "schema": { "$ref": "#/backend/entities/OrdenLista" },
+          "description": "Subcollection to store the display order rules for member types.",
+          "params": [
+            { "name": "adminId", "description": "Admin's UID." },
+            { "name": "ordenId", "description": "Unique ID for the ordering rule." }
+          ]
+        }
+      },
+      {
+        "path": "/admins/{adminId}/poll_templates/{templateId}",
+        "definition": {
+          "entityName": "PollTemplate",
+          "schema": { "$ref": "#/backend/entities/PollTemplate" },
+          "description": "Subcollection for reusable poll templates.",
+          "params": [
+            { "name": "adminId", "description": "Admin's UID." },
+            { "name": "templateId", "description": "Unique ID for the poll template." }
           ]
         }
       },
