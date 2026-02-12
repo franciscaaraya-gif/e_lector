@@ -180,6 +180,15 @@ service cloud.firestore {
             allow update: if isExistingOwner(adminId) && isGroupDataImmutable();
             allow delete: if isExistingOwner(adminId);
         }
+
+        /**
+         * @description Manages the complete list of company members.
+         * @path /admins/{adminId}/lista_completa/{itemId}
+         * @allow (read, write) Only the admin owner can manage their company list.
+         */
+        match /lista_completa/{itemId} {
+            allow read, write: if isOwner(adminId);
+        }
     }
     
     /**

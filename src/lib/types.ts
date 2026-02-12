@@ -65,3 +65,19 @@ export type Sala = {
   name: string;
   adminId: string;
 };
+
+export type ListaCompletaItem = {
+  id: string;
+  adminId: string;
+  nombres: string;
+  apellidos: string;
+  tipo: string;
+  ci?: string;
+  regGeneral?: string;
+  compania?: string;
+  grupoSangre?: string;
+  donante?: string;
+  alergias?: string;
+  cargo?: string;
+  calidad?: string;
+};

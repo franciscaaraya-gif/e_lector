@@ -220,6 +220,27 @@
         }
       },
       "required": ["id", "name", "adminId"]
+    },
+    "ListaCompletaItem": {
+      "title": "Lista Completa Item",
+      "type": "object",
+      "description": "Represents a single person in the complete list of the company (martyrs, volunteers, etc.).",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the item." },
+        "adminId": { "type": "string", "description": "The ID of the admin who owns this item." },
+        "nombres": { "type": "string" },
+        "apellidos": { "type": "string" },
+        "tipo": { "type": "string", "description": "Type of member, e.g., 'martir', 'Bombero', 'Honorario'." },
+        "ci": { "type": "string" },
+        "regGeneral": { "type": "string" },
+        "compania": { "type": "string" },
+        "grupoSangre": { "type": "string" },
+        "donante": { "type": "string" },
+        "alergias": { "type": "string" },
+        "cargo": { "type": "string" },
+        "calidad": { "type": "string" }
+      },
+      "required": ["id", "adminId", "tipo"]
     }
   },
   "auth": {
@@ -332,6 +353,20 @@
               "name": "groupId",
               "description": "Unique identifier for the voter group."
             }
+          ]
+        }
+      },
+      {
+        "path": "/admins/{adminId}/lista_completa/{itemId}",
+        "definition": {
+          "entityName": "ListaCompletaItem",
+          "schema": {
+            "$ref": "#/backend/entities/ListaCompletaItem"
+          },
+          "description": "Subcollection for all company members (martyrs, volunteers, etc.).",
+          "params": [
+            { "name": "adminId", "description": "Admin's UID." },
+            { "name": "itemId", "description": "Unique ID for the list item." }
           ]
         }
       },

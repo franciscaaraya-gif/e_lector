@@ -78,12 +78,10 @@ export function AdminSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              isActive={pathname === '/admin/settings'}
+              isActive={pathname.startsWith('/admin/settings')}
               tooltip="Configuración"
-              // @ts-ignore
-              disabled
             >
-              <Link href="#">
+              <Link href="/admin/settings">
                 <Settings />
                 <span>Configuración</span>
               </Link>
