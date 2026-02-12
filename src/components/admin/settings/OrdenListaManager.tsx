@@ -16,16 +16,22 @@ const defaultOrderRules: Record<string, { orden: number }> = {
     'martir': { orden: 1 },
     'Director': { orden: 2 },
     'Capitán': { orden: 3 },
-    // Los tenientes se agrupan con orden base 4
-    'Maquinista': { orden: 7 },
-    'Secretario': { orden: 8 },
-    'Tesorero': { orden: 9 },
-    'Intendente': { orden: 10 },
-    'Cirujano': { orden: 11 },
-    // Los ayudantes se agrupan con orden base 12
-    'Insp. Administración': { orden: 13 },
-    'Ayte. Administración': { orden: 14 },
-    'Ayte. Comandancia': { orden: 15 },
+    'Teniente 1': { orden: 4 },
+    'Teniente 2': { orden: 5 },
+    'Teniente 3': { orden: 6 },
+    // Los roles de Ayudante se agruparán en el orden 7
+    'Maquinista': { orden: 8 },
+    'Secretario': { orden: 9 },
+    'Tesorero': { orden: 10 },
+    'Intendente': { orden: 11 },
+    'Cirujano': { orden: 12 },
+    'Ayte. Comandancia': { orden: 13 },
+    'Miembro Honorario': { orden: 14 },
+    'Insp. Administración': { orden: 15 },
+    // Grupo para roles de consejero/activo
+    'Activo': { orden: 16 },
+    'Consejero de Disciplina': { orden: 16 },
+    'Honorario': { orden: 16 },
     'Voluntarios(as)': { orden: 99 },
 };
 
@@ -57,31 +63,29 @@ export function OrdenListaManager() {
   }, [listaCompleta]);
 
   useEffect(() => {
-    // Espera a que ambas listas estén cargadas para evitar actualizaciones de estado parciales
     if (isLoadingLista || isLoadingOrden) return;
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
 
-    // 1. Construye el estado inicial a partir de todos los 'tipos' únicos encontrados en la lista principal
     tiposUnicos.forEach(tipo => {
-        let baseOrder = 99; // Orden por defecto, agrupa con "Voluntarios(as)"
+        let baseOrder = 99; // Orden por defecto para "Voluntarios(as)" y otros no especificados
         const defaultRule = defaultOrderRules[tipo];
 
         if (defaultRule) {
             baseOrder = defaultRule.orden;
         } else if (tipo.startsWith('Teniente')) {
-            baseOrder = 4; // Orden base para todos los roles 'Teniente'
-        } else if (tipo.startsWith('Ayudante')) {
-            baseOrder = 12; // Orden base para todos los roles 'Ayudante'
+            baseOrder = 6; // Agrupar con otros Tenientes si no está especificado (ej. Teniente 4)
+        } else if (tipo.startsWith('Ayudante') || tipo.startsWith('Ayte.')) {
+            baseOrder = 7; // Agrupar todos los roles de Ayudante después de los Tenientes
+        } else if (tipo === 'Activos' || tipo === 'Consejeros') {
+             baseOrder = 16; // Agrupar estos roles juntos
         }
         
         newOrdenes[tipo] = { orden: baseOrder, metodo: 'apellidos_asc' };
     });
 
-    // 2. Sobrescribe el estado inicial con cualquier orden específico guardado en Firestore.
-    // `ordenLista` está garantizado como un array (o vacío) porque isLoadingOrden es false.
+    // Sobrescribe el orden por defecto con cualquier configuración guardada en la base de datos
     ordenLista?.forEach(item => {
-        // Esto asegura que solo usemos órdenes guardadas para tipos que todavía existen.
         if (tiposUnicos.includes(item.tipo)) { 
             newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
         }
@@ -115,7 +119,7 @@ export function OrdenListaManager() {
             const docRef = doc(firestore, 'admins', user.uid, 'orden_lista', tipo);
             const dataToSet = {
                 tipo: tipo,
-                orden: localOrdenes[tipo]?.orden ?? 0,
+                orden: localOrdenes[tipo]?.orden ?? 99,
                 metodo: localOrdenes[tipo]?.metodo ?? 'apellidos_asc',
                 adminId: user.uid
             };
