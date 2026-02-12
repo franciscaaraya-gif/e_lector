@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useState, useEffect } from 'react';
+import { useForm, useFieldArray, useController } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { addDoc, collection, serverTimestamp, writeBatch, doc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, writeBatch, doc, query, where } from 'firebase/firestore';
 import { PlusCircle, Loader2, Trash2, Plus, GripVertical } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -24,9 +24,12 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebas
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
-import { VoterGroup, PollTemplate } from '@/lib/types';
+import { VoterGroup, PollTemplate, ListaCompletaItem } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { ScrollArea } from '../ui/scroll-area';
+import { Alert, AlertDescription } from '../ui/alert';
 
 const formSchema = z.object({
   question: z.string().min(5, 'La pregunta debe tener al menos 5 caracteres.').max(200, 'La pregunta no puede exceder los 200 caracteres.'),
@@ -50,6 +53,72 @@ const formSchema = z.object({
     path: ['maxSelections'],
 });
 
+
+const AutocompleteInput = ({ control, index, volunteers }: { control: any, index: number, volunteers: ListaCompletaItem[] }) => {
+    const { field } = useController({
+        control,
+        name: `options.${index}.text`
+    });
+
+    const [suggestions, setSuggestions] = useState<ListaCompletaItem[]>([]);
+    const [popoverOpen, setPopoverOpen] = useState(false);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        field.onChange(value); 
+
+        if (value.length >= 3) {
+            const filtered = volunteers.filter(v =>
+                `${v.nombres} ${v.apellidos}`.toLowerCase().includes(value.toLowerCase())
+            );
+            setSuggestions(filtered);
+            setPopoverOpen(filtered.length > 0);
+        } else {
+            setSuggestions([]);
+            setPopoverOpen(false);
+        }
+    };
+
+    const handleSuggestionClick = (volunteer: ListaCompletaItem) => {
+        const fullName = `${volunteer.nombres} ${volunteer.apellidos}`;
+        field.onChange(fullName);
+        setPopoverOpen(false);
+    };
+
+    return (
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+                <Input
+                    placeholder={`Opción ${index + 1}`}
+                    value={field.value || ''}
+                    onChange={handleInputChange}
+                    autoComplete="off"
+                    className="flex-1"
+                />
+            </PopoverTrigger>
+            <PopoverContent 
+                className="w-[--radix-popover-trigger-width] p-0"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+                <ScrollArea className="max-h-48">
+                    {suggestions.map(v => (
+                        <div
+                            key={v.id}
+                            className="p-2 hover:bg-accent cursor-pointer text-sm"
+                            onMouseDown={(e) => {
+                                e.preventDefault();
+                                handleSuggestionClick(v);
+                            }}
+                        >
+                            {v.nombres} {v.apellidos}
+                        </div>
+                    ))}
+                </ScrollArea>
+            </PopoverContent>
+        </Popover>
+    );
+};
+
 export function CreatePollDialog() {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,6 +126,7 @@ export function CreatePollDialog() {
   const firestore = useFirestore();
   const { user } = useUser();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
+  const [isCargoElection, setIsCargoElection] = useState(false);
 
   const groupsQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -70,6 +140,12 @@ export function CreatePollDialog() {
     return collection(firestore, `admins/${user.uid}/poll_templates`);
   }, [user, firestore]);
   const { data: pollTemplates, isLoading: templatesLoading } = useCollection<PollTemplate>(templatesQuery);
+
+  const volunteersQuery = useMemoFirebase(() => {
+    if (!firestore || !user || !isCargoElection) return null;
+    return query(collection(firestore, 'admins', user.uid, 'lista_completa'), where('tipo', '!=', 'Martir '));
+  }, [firestore, user, isCargoElection]);
+  const { data: volunteers } = useCollection<ListaCompletaItem>(volunteersQuery);
 
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -92,12 +168,15 @@ export function CreatePollDialog() {
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
     if (templateId === 'custom') {
+        form.setValue('question', '');
         form.setValue('pollType', 'simple');
         form.setValue('maxSelections', undefined);
         form.clearErrors('maxSelections');
+        setIsCargoElection(false);
     } else {
         const template = pollTemplates?.find(t => t.id === templateId);
         if (template) {
+            form.setValue('question', template.question);
             form.setValue('pollType', template.pollType);
             if (template.pollType === 'multiple' && template.maxSelections) {
                 form.setValue('maxSelections', template.maxSelections);
@@ -105,6 +184,7 @@ export function CreatePollDialog() {
                 form.setValue('maxSelections', undefined);
             }
             form.trigger('maxSelections');
+            setIsCargoElection(template.eleccionDeCargo || false);
         }
     }
   };
@@ -119,6 +199,7 @@ export function CreatePollDialog() {
     });
     setIsLoading(false);
     setSelectedTemplateId('custom');
+    setIsCargoElection(false);
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -157,10 +238,8 @@ export function CreatePollDialog() {
 
         const batch = writeBatch(firestore);
 
-        // 1. Set the poll document
         batch.set(newPollRef, newPollData);
         
-        // 2. Add all enabled voters to the subcollection
         const votersSubcollectionRef = collection(firestore, 'admins', user.uid, 'polls', newPollRef.id, 'voters');
         enabledVoters.forEach(voter => {
             const newVoterDocRef = doc(votersSubcollectionRef);
@@ -168,16 +247,14 @@ export function CreatePollDialog() {
                 voterId: voter.id,
                 pollId: newPollRef.id,
                 hasVoted: false,
-                adminId: user.uid, // Denormalize adminId for secure queries
+                adminId: user.uid, 
                 enabled: true,
             });
         });
 
-        // 3. Create public lookup document
         const lookupRef = doc(firestore, 'poll-lookup', newPollRef.id);
         batch.set(lookupRef, { adminId: user.uid });
         
-        // 4. Commit the batch
         await batch.commit();
 
         toast({
@@ -224,7 +301,7 @@ export function CreatePollDialog() {
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4">
             <FormItem>
               <FormLabel>Plantilla de Votación (Opcional)</FormLabel>
               <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
@@ -261,17 +338,32 @@ export function CreatePollDialog() {
 
             <div className='space-y-2'>
               <FormLabel>Opciones de Respuesta</FormLabel>
+              {isCargoElection && (
+                <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
+                    <AlertDescription>
+                        Elección de Cargo: Escribe 3+ letras del nombre o apellido para buscar en la lista de voluntarios.
+                    </AlertDescription>
+                </Alert>
+              )}
               {fields.map((field, index) => (
                   <FormField
                   key={field.id}
                   control={form.control}
                   name={`options.${index}.text`}
-                  render={({ field }) => (
+                  render={({ field: formField }) => (
                       <FormItem>
                           <FormControl>
                             <div className="flex items-center gap-2">
                                 <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                <Input placeholder={`Opción ${index + 1}`} {...field} />
+                                {isCargoElection ? (
+                                    <AutocompleteInput
+                                        control={form.control}
+                                        index={index}
+                                        volunteers={volunteers || []}
+                                    />
+                                ) : (
+                                    <Input placeholder={`Opción ${index + 1}`} {...formField} />
+                                )}
                                 <Button
                                     type="button"
                                     variant="ghost"
@@ -391,3 +483,5 @@ export function CreatePollDialog() {
     </Dialog>
   );
 }
+
+    

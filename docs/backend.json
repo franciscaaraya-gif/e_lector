@@ -268,13 +268,45 @@
       "type": "object",
       "description": "Representa una plantilla reutilizable para una votación estándar.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the template." },
-        "adminId": { "type": "string", "description": "The ID of the admin who owns this template." },
-        "name": { "type": "string", "description": "El nombre o título de la plantilla de votación." },
-        "pollType": { "type": "string", "enum": ["simple", "multiple"] },
-        "maxSelections": { "type": "number", "description": "Selecciones máximas para una votación de opción múltiple." }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the template."
+        },
+        "adminId": {
+          "type": "string",
+          "description": "The ID of the admin who owns this template."
+        },
+        "name": {
+          "type": "string",
+          "description": "El nombre o título de la plantilla de votación."
+        },
+        "question": {
+          "type": "string",
+          "description": "La pregunta predefinida para la plantilla."
+        },
+        "pollType": {
+          "type": "string",
+          "enum": [
+            "simple",
+            "multiple"
+          ]
+        },
+        "maxSelections": {
+          "type": "number",
+          "description": "Selecciones máximas para una votación de opción múltiple."
+        },
+        "eleccionDeCargo": {
+          "type": "boolean",
+          "description": "Indica si esta votación es para elegir un cargo, usando la lista de voluntarios como opciones."
+        }
       },
-      "required": ["id", "adminId", "name", "pollType"]
+      "required": [
+        "id",
+        "adminId",
+        "name",
+        "pollType",
+        "question"
+      ]
     }
   },
   "auth": {
@@ -480,3 +512,5 @@
     "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, adhering to the principles of DBAC (Database-Based Access Control) and QAPs (Rules are not Filters).  It leverages denormalization to avoid `get()` calls in security rules, enabling atomic operations and simplifying debugging.\n\n**Authorization Independence:**\n\n*   `Polls`: The `adminId` field within each poll document directly associates the poll with its creator, eliminating the need to fetch admin data during authorization.\n*   `Voters`: The `pollId` and `adminId` fields within each voter document link the voter to a specific poll and its owner. This design enables efficient, secure collection group queries for the voter inbox feature and maintains authorization independence.\n*   `VoterGroups`: Are stored under the admin who created them, ensuring strict ownership and simple security rules.\n\n**Structural Segregation:**\n\n*   The database separates polls, voters, votes, and groups into distinct collections. This segregation allows for specific and straightforward security rules for each entity.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** Polls and Groups are accessed via `/admins/{adminId}/...`, making ownership clear and security rules simple.\n*   **One-to-Many Relationship:** The structure reflects the one-to-many relationships between Admins and Polls, Admins and VoterGroups, Polls and Voters, and Polls and Votes through hierarchical paths.\n\n**QAPs Support:**\n\n*   The structure enables secure `list` operations because access control is enforced at the collection level (e.g., only the admin can list polls/groups under their ID).\n\n**Invariants:**\n\n*   The structure supports the integrity of ownership, timestamps, and denormalized data. For example, `adminId` maintains clear ownership."
   }
 }
+
+    

@@ -100,8 +100,11 @@ export type PollTemplate = {
     id: string;
     adminId: string;
     name: string;
+    question: string;
     pollType: 'simple' | 'multiple';
     maxSelections?: number;
+    eleccionDeCargo?: boolean;
 };
 
+    
     
