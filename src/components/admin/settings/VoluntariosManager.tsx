@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -49,6 +50,14 @@ export function VoluntariosManager() {
           title: "Encabezados copiados",
           description: "Los encabezados requeridos para el archivo Excel han sido copiados.",
       });
+  };
+
+  const handleTipoSelectionChange = (indexToUpdate: number, newTipo: string) => {
+    setParsedVoluntarios(currentVoluntarios =>
+        currentVoluntarios.map((vol, index) =>
+            index === indexToUpdate ? { ...vol, tipo: newTipo } : vol
+        )
+    );
   };
 
   const handleFile = (file: File) => {
@@ -91,13 +100,14 @@ export function VoluntariosManager() {
 
           if (!nombres && !apellidos && !rut) return null;
 
+          const isValidCargo = cargo && cargo !== '-';
+          const isValidCalidad = calidad && calidad !== '-';
+
           let tipoFinal = 'Voluntarios(as)';
-          const cargoTrimmed = cargo.trim();
-          const calidadTrimmed = calidad.trim();
-          if (cargoTrimmed && cargoTrimmed !== '-') {
-              tipoFinal = cargoTrimmed;
-          } else if (calidadTrimmed && calidadTrimmed !== '-') {
-              tipoFinal = calidadTrimmed;
+          if (isValidCargo) {
+              tipoFinal = cargo;
+          } else if (isValidCalidad) {
+              tipoFinal = calidad;
           }
 
           return {
@@ -146,17 +156,12 @@ export function VoluntariosManager() {
         const batch = writeBatch(firestore);
         const collectionRef = collection(firestore, 'admins', user.uid, 'lista_completa');
         
-        // Primero, borramos la lista existente de voluntarios para evitar duplicados.
-        const q = query(collectionRef);
+        const q = query(collectionRef, where('tipo', '!=', 'martir'));
         const snapshot = await getDocs(q);
         snapshot.docs.forEach(doc => {
-            // Cuidado: esto borra todo, si quieres mantener "martires" debes filtrar
-            if (doc.data().tipo !== 'martir') {
-                batch.delete(doc.ref);
-            }
+            batch.delete(doc.ref);
         });
 
-        // Luego, añadimos los nuevos
         parsedVoluntarios.forEach(voluntario => {
             const docRef = doc(collectionRef);
             batch.set(docRef, { ...voluntario, adminId: user.uid });
@@ -229,13 +234,33 @@ export function VoluntariosManager() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {parsedVoluntarios.map((vol, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{vol.nombres}</TableCell>
-                    <TableCell>{vol.apellidos}</TableCell>
-                    <TableCell>{vol.tipo}</TableCell>
-                  </TableRow>
-                ))}
+                {parsedVoluntarios.map((vol, index) => {
+                  const hasConflict = vol.cargo && vol.cargo !== '-' && vol.calidad && vol.calidad !== '-';
+                  return (
+                    <TableRow key={index}>
+                      <TableCell>{vol.nombres}</TableCell>
+                      <TableCell>{vol.apellidos}</TableCell>
+                      <TableCell>
+                        {hasConflict && vol.cargo && vol.calidad ? (
+                           <Select
+                                value={vol.tipo}
+                                onValueChange={(newTipo) => handleTipoSelectionChange(index, newTipo)}
+                            >
+                                <SelectTrigger className="h-9">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={vol.cargo}>{vol.cargo}</SelectItem>
+                                    <SelectItem value={vol.calidad}>{vol.calidad}</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        ) : (
+                            vol.tipo
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </ScrollArea>
