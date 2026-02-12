@@ -44,7 +44,7 @@ export function OrdenListaManager() {
 
     const newOrdenes: Record<string, { orden: number; metodo: string }> = {};
     
-    const cardinalRegex = /(.+?)\s+(\d+|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo|1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|[1-9][0-9]?[ºª°]?)$/i;
+    const cardinalRegex = /(.+?)\s+(primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo|\d+[ºª°]?)$/i;
 
     const groupedTipos = new Set<string>();
     const numericGroups = new Set<string>();
@@ -56,7 +56,7 @@ export function OrdenListaManager() {
             groupedTipos.add(groupName);
             numericGroups.add(groupName);
         } else {
-            groupedTipos.add(tipo.trim());
+            groupedTipos.add(tipo);
         }
     });
 
@@ -64,11 +64,17 @@ export function OrdenListaManager() {
 
     Array.from(groupedTipos).forEach(tipo => {
         let baseOrder: number;
-        const lowerTipo = tipo.toLowerCase().trim();
+        const lowerTipo = tipo.toLowerCase();
+        let metodo: 'apellidos_asc' | 'carga' | 'registro' | 'jerarquia' = 'apellidos_asc';
 
-        const defaultMetodo = numericGroups.has(tipo) ? 'jerarquia' : 'apellidos_asc';
+        if(numericGroups.has(tipo)) {
+            metodo = 'jerarquia';
+        } else if (lowerTipo === 'martir '){
+            metodo = 'carga';
+        }
 
-        if (lowerTipo === 'martir') {
+        // Default order logic
+        if (lowerTipo === 'martir ') {
             baseOrder = 1;
         } else if (lowerTipo === 'director') {
             baseOrder = 2;
@@ -104,22 +110,24 @@ export function OrdenListaManager() {
             baseOrder = 99; // Default for anything else
         }
         
-        newOrdenes[tipo] = { orden: baseOrder, metodo: defaultMetodo };
+        newOrdenes[tipo] = { orden: baseOrder, metodo: metodo };
     });
 
     // Override with saved data from Firestore
     ordenLista?.forEach(item => {
         const match = item.tipo.match(cardinalRegex);
-        const groupName = match && match[1] ? match[1].trim() : item.tipo.trim();
+        const groupName = match && match[1] ? match[1].trim() : item.tipo;
         
         if (newOrdenes[groupName]) {
-            if (numericGroups.has(groupName)) {
-                newOrdenes[groupName].orden = item.orden;
-            } else {
-                newOrdenes[groupName] = { orden: item.orden, metodo: item.metodo };
+            newOrdenes[groupName].orden = item.orden;
+            if (!numericGroups.has(groupName) && groupName !== 'Martir ') {
+                 newOrdenes[groupName].metodo = item.metodo;
             }
         } else if (newOrdenes[item.tipo]) { 
-            newOrdenes[item.tipo] = { orden: item.orden, metodo: item.metodo };
+            newOrdenes[item.tipo].orden = item.orden;
+            if (item.tipo !== 'Martir ') {
+                 newOrdenes[item.tipo].metodo = item.metodo;
+            }
         }
     });
 
@@ -131,7 +139,7 @@ export function OrdenListaManager() {
     const updatedState = {
       ...localOrdenes,
       [tipo]: {
-        ...(localOrdenes[tipo] ?? { orden: 0, metodo: 'apellidos_asc' }), // Ensure object exists
+        ...(localOrdenes[tipo] ?? { orden: 0, metodo: 'apellidos_asc' }),
         [field]: value
       }
     };
@@ -200,6 +208,7 @@ export function OrdenListaManager() {
         <div className="space-y-3">
             {Object.keys(localOrdenes).sort((a, b) => (localOrdenes[a]?.orden ?? 99) - (localOrdenes[b]?.orden ?? 99)).map(tipo => {
                 const isNumericGroup = numericGroupedTipos.has(tipo);
+                const isMartir = tipo === 'Martir ';
                 return(
                 <div key={tipo} className="flex items-center gap-2 p-2 border rounded-md">
                 <Input
@@ -213,7 +222,7 @@ export function OrdenListaManager() {
                 <Select
                     value={localOrdenes[tipo]?.metodo ?? 'apellidos_asc'}
                     onValueChange={(value) => handleLocalUpdate(tipo, 'metodo', value)}
-                    disabled={isNumericGroup}
+                    disabled={isNumericGroup || isMartir}
                 >
                     <SelectTrigger className="w-48 h-9">
                         <SelectValue />
@@ -221,7 +230,9 @@ export function OrdenListaManager() {
                     <SelectContent>
                         {isNumericGroup ? (
                              <SelectItem value="jerarquia">Jerarquía</SelectItem>
-                        ): (
+                        ): isMartir ? (
+                            <SelectItem value="carga">Orden de Carga</SelectItem>
+                        ) : (
                             <>
                                 <SelectItem value="apellidos_asc">Ascendente (Apellidos)</SelectItem>
                                 <SelectItem value="carga">Orden de Carga</SelectItem>
