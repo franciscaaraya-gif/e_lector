@@ -92,10 +92,12 @@ export function VoluntariosManager() {
           if (!nombres && !apellidos && !rut) return null;
 
           let tipoFinal = 'Voluntarios(as)';
-          if (cargo && cargo !== '-') {
-              tipoFinal = cargo;
-          } else if (calidad && calidad !== '-') {
-              tipoFinal = calidad;
+          const cargoTrimmed = cargo.trim();
+          const calidadTrimmed = calidad.trim();
+          if (cargoTrimmed && cargoTrimmed !== '-') {
+              tipoFinal = cargoTrimmed;
+          } else if (calidadTrimmed && calidadTrimmed !== '-') {
+              tipoFinal = calidadTrimmed;
           }
 
           return {
@@ -209,7 +211,7 @@ export function VoluntariosManager() {
                 </Button>
             </div>
           </div>
-           <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-mono text-xs bg-muted p-1 rounded'>{fileName}</span></p>
+           <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-mono text-xs bg-muted p-1 rounded'>{fileName}</span>. <span className='font-semibold'>Esta acción reemplazará la lista de voluntarios existente.</span></p>
           <ScrollArea className="h-60 border rounded-md">
             <Table>
               <TableHeader>
