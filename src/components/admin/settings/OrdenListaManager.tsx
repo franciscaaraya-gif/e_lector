@@ -37,17 +37,15 @@ export function OrdenListaManager() {
     if (!listaCompleta) return [];
     const allTipos = listaCompleta.map(item => item.tipo).filter(Boolean);
     
-    const cardinalRegex = /(.+?)\s+(\d+([.ºª°])?|primero|segundo|tercero|cuarto|quinto)$/i;
+    const cardinalRegex = /(.+?)\s+(\d+([.ºª°])?|primero|segundo|tercero|cuarto|quinto|sexto|séptimo|octavo|noveno|décimo)$/i;
     
     const groupedTipos = new Set<string>();
 
     allTipos.forEach(tipo => {
         const match = tipo.match(cardinalRegex);
         if (match && match[1]) {
-            // Add the base name (e.g., "Teniente") to the set
             groupedTipos.add(match[1].trim());
         } else {
-            // Not a numbered type, add as is
             groupedTipos.add(tipo);
         }
     });
