@@ -37,8 +37,7 @@ export function OrdenListaManager() {
     if (!listaCompleta) return [];
     const allTipos = listaCompleta.map(item => item.tipo).filter(Boolean);
     
-    // Regex to find numbers or cardinal words at the end of a string
-    const cardinalRegex = /(.+?)\s+(\d+|primero|segundo|tercero|cuarto|quinto)$/i;
+    const cardinalRegex = /(.+?)\s+(\d+([.ºª°])?|primero|segundo|tercero|cuarto|quinto)$/i;
     
     const groupedTipos = new Set<string>();
 
@@ -73,8 +72,10 @@ export function OrdenListaManager() {
             baseOrder = 3;
         } else if (lowerTipo === 'teniente') {
             baseOrder = 4;
-        } else if (lowerTipo === 'ayudante') {
-            baseOrder = 5;
+        } else if (lowerTipo.startsWith('ayudante') || lowerTipo.startsWith('ayte.')) {
+             if (lowerTipo.includes('administración')) baseOrder = 14;
+             else if (lowerTipo.includes('comandancia')) baseOrder = 11;
+             else baseOrder = 5; // General ayudantes
         } else if (lowerTipo === 'maquinista') {
             baseOrder = 6;
         } else if (lowerTipo === 'secretario') {
@@ -85,14 +86,10 @@ export function OrdenListaManager() {
             baseOrder = 9;
         } else if (lowerTipo === 'cirujano') {
             baseOrder = 10;
-        } else if (lowerTipo === 'ayte. comandancia') {
-            baseOrder = 11;
         } else if (lowerTipo === 'miembro honorario') {
             baseOrder = 12;
         } else if (lowerTipo === 'insp. administración') {
             baseOrder = 13;
-        } else if (lowerTipo === 'ayte. administración') {
-            baseOrder = 14;
         } else if (['activo', 'consejero de disciplina', 'honorario', 'voluntarios'].includes(lowerTipo)) {
             baseOrder = 15;
         } else {
