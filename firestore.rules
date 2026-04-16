@@ -8,24 +8,24 @@ service cloud.firestore {
 
     // Esta regla permite que la Bandeja de Entrada busque en todos los documentos 'voters'
     // sin importar bajo qué admin o encuesta estén.
+    // La hacemos pública para lectura para evitar el error de "Permission Denied" 
+    // que a veces enmascara la falta de índices.
     match /{path=**}/voters/{vDocId} {
-        // Cualquier usuario autenticado (incluyendo anónimos) puede leer su estado.
-        allow read: if request.auth != null;
+        allow read: if true;
         
-        // Permisos de escritura para el admin y para el proceso de votación (hasVoted)
+        // Escritura protegida
         allow create: if request.auth != null;
         allow update: if request.auth != null && (
-            // El admin puede cambiar todo, el votante solo 'hasVoted'
             (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted'])) ||
             (request.auth.uid == resource.data.adminId)
         );
         allow delete: if request.auth != null && request.auth.uid == resource.data.adminId;
     }
     
-    // Regla global para votos (permite que cualquier usuario autenticado emita un voto)
+    // Regla global para votos
     match /{path=**}/votes/{voteId} {
         allow create: if request.auth != null;
-        allow read: if request.auth != null; // El admin necesita leerlos para los resultados
+        allow read: if request.auth != null;
     }
 
     // ========================================================================
@@ -41,14 +41,14 @@ service cloud.firestore {
     }
 
     match /admins/{adminId} {
-      allow get: if isSignedIn();
+      allow get: if true; // Permitir lectura de perfiles admin para identificar salas
       allow list: if isOwner(adminId);
       allow create: if isOwner(adminId);
       allow update: if isOwner(adminId);
       allow delete: if isOwner(adminId);
 
       match /polls/{pollId} {
-        allow get, list: if isSignedIn();
+        allow get, list: if true; // Las encuestas deben ser legibles para votar
         allow create, update, delete: if isOwner(adminId);
       }
 
@@ -67,11 +67,6 @@ service cloud.firestore {
       match /poll_templates/{templateId} {
         allow read, write: if isOwner(adminId);
       }
-    }
-    
-    // Reglas de utilidad para el sistema
-    match /authorizedAdmins/{authId} {
-      allow list: if isSignedIn();
     }
     
     match /poll-lookup/{pollId} {

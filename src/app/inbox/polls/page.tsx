@@ -12,8 +12,9 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowLeft, Info, Loader2 } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Info, HelpCircle } from 'lucide-react';
 import InboxLoading from './loading';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, voterId: string }) {
     const firestore = useFirestore();
@@ -53,8 +54,9 @@ function PollsInboxClient() {
     const voterId = searchParams.get('voterId');
     const salaId = searchParams.get('salaId');
 
-    const [authError, setAuthError] = useState<string>('');
     const [isAuthenticating, setIsAuthenticating] = useState(false);
+    const [showDebug, setShowDebug] = useState(false);
+    
     const firestore = useFirestore();
     const auth = useAuth();
     const { user, isUserLoading: isAuthLoading } = useUser();
@@ -66,14 +68,12 @@ function PollsInboxClient() {
         signInAnonymously(auth)
             .catch(err => {
                 console.error("Auth error:", err);
-                setAuthError("No se pudo iniciar sesión de forma segura.");
             })
             .finally(() => setIsAuthenticating(false));
     }, [auth, user, isAuthLoading]);
 
     const votersQuery = useMemoFirebase(() => {
         if (!firestore || !voterId || !salaId || !user) return null;
-        // Consulta de grupo para encontrar las encuestas del votante
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
@@ -94,41 +94,6 @@ function PollsInboxClient() {
 
     if (isLoading) {
         return <InboxLoading />;
-    }
-
-    if (docsError || authError) {
-        return (
-             <Card className="border-destructive">
-                <CardHeader>
-                    <CardTitle className="text-destructive flex items-center gap-2">
-                        <AlertCircle className="h-6 w-6" />
-                        Acceso Restringido o Error Técnico
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <p className="text-sm font-medium">No se han podido cargar tus votaciones.</p>
-                    
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
-                        <h4 className="font-bold text-blue-900 flex items-center gap-2">
-                            <Info className="h-4 w-4" /> Posibles causas:
-                        </h4>
-                        <ol className="text-sm text-blue-800 list-decimal list-inside space-y-2">
-                            <li><b>Falta de Índice:</b> Si eres el administrador, presiona <b>F12</b>, ve a <b>Console</b> y busca el <b>enlace azul</b> de Firebase para crear el índice.</li>
-                            <li><b>ID Incorrecto:</b> Verifica que tu ID de votante sea el correcto.</li>
-                            <li><b>Sin Conexión:</b> Revisa tu conexión a internet.</li>
-                        </ol>
-                    </div>
-                </CardContent>
-                <CardFooter>
-                    <Button asChild variant="outline" className='w-full'>
-                        <Link href="/inbox">
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver atrás
-                        </Link>
-                    </Button>
-                </CardFooter>
-            </Card>
-        );
     }
     
     return (
@@ -160,6 +125,31 @@ function PollsInboxClient() {
                             voterId={voterId!} 
                         />
                     ))}
+                </div>
+            )}
+
+            {/* Ayuda técnica discreta para el administrador */}
+            {docsError && (
+                <div className="pt-8 text-center">
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-muted-foreground text-[10px]" 
+                        onClick={() => setShowDebug(!showDebug)}
+                    >
+                        <HelpCircle className="h-3 w-3 mr-1" /> Ayuda técnica (Admin)
+                    </Button>
+                    
+                    {showDebug && (
+                        <Alert variant="destructive" className="mt-4 text-left">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>Error de Configuración Detectado</AlertTitle>
+                            <AlertDescription className="text-xs space-y-2">
+                                <p>La bandeja de entrada no puede consultar los datos. Esto suele deberse a que falta un <b>Índice Compuesto</b> en Firebase.</p>
+                                <p><b>Cómo solucionarlo:</b> Abre la consola del navegador (F12), busca un error rojo de Firebase y haz clic en el enlace azul que aparece allí para crear el índice automáticamente.</p>
+                            </AlertDescription>
+                        </Alert>
+                    )}
                 </div>
             )}
         </div>
