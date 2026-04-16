@@ -25,9 +25,10 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListaCompletaItem, VoterInfo } from '@/lib/types';
 import { Separator } from '../ui/separator';
+import { CardContent } from '../ui/card';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }).max(50, { message: 'El nombre no puede tener más de 50 caracteres.' }),
@@ -83,13 +84,14 @@ export function CreateGroupDialog() {
     if (!foundVoterInList) return;
     
     // Check if already in group
-    if (votersInGroup.some(v => v.id === foundVoterInList.id)) {
+    const voterIdToAdd = foundVoterInList.regGeneral || foundVoterInList.id;
+    if (votersInGroup.some(v => v.id === voterIdToAdd)) {
       toast({ variant: 'destructive', title: 'Ya agregado', description: 'Este votante ya está en el grupo.' });
       return;
     }
 
     setVotersInGroup([...votersInGroup, {
-      id: foundVoterInList.regGeneral || foundVoterInList.id,
+      id: voterIdToAdd,
       nombre: foundVoterInList.nombres,
       apellido: foundVoterInList.apellidos,
       enabled: true
@@ -98,24 +100,32 @@ export function CreateGroupDialog() {
     toast({ title: 'Agregado', description: `${foundVoterInList.nombres} ha sido agregado al grupo.` });
   };
 
+  const generateUniqueExternalId = () => {
+    let isUnique = false;
+    let newId = '';
+    
+    while (!isUnique) {
+      // Formato EXT- seguido de 5 dígitos aleatorios
+      const randomDigits = Math.floor(10000 + Math.random() * 90000).toString();
+      newId = `EXT-${randomDigits}`;
+      
+      const existsInList = personnel?.some(p => String(p.regGeneral) === newId || p.id === newId);
+      const existsInGroup = votersInGroup.some(v => v.id === newId);
+      
+      if (!existsInList && !existsInGroup) {
+        isUnique = true;
+      }
+    }
+    return newId;
+  };
+
   const addManualVoter = () => {
     if (!manualNames.trim() || !manualLastNames.trim()) {
       toast({ variant: 'destructive', title: 'Datos incompletos', description: 'Por favor ingresa nombre y apellido.' });
       return;
     }
 
-    // Generate a unique numeric ID that doesn't conflict
-    let newId = '';
-    let isUnique = false;
-    while (!isUnique) {
-      const randomId = Math.floor(100000 + Math.random() * 900000).toString();
-      const existsInList = personnel?.some(p => String(p.regGeneral) === randomId);
-      const existsInGroup = votersInGroup.some(v => v.id === randomId);
-      if (!existsInList && !existsInGroup) {
-        newId = randomId;
-        isUnique = true;
-      }
-    }
+    const newId = generateUniqueExternalId();
 
     setVotersInGroup([...votersInGroup, {
       id: newId,
@@ -127,7 +137,7 @@ export function CreateGroupDialog() {
     setManualNames('');
     setManualLastNames('');
     setShowManualForm(false);
-    toast({ title: 'Votante Externo Agregado', description: `Se ha registrado con el ID temporal: ${newId}` });
+    toast({ title: 'Votante Externo Agregado', description: `Se ha registrado temporalmente con el ID: ${newId}` });
   };
 
   const removeVoter = (id: string) => {
@@ -175,7 +185,9 @@ export function CreateGroupDialog() {
       <DialogContent className="sm:max-w-2xl max-h-[95dvh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Crear Nuevo Grupo de Votantes</DialogTitle>
-          <DialogDescription>Agrega votantes escaneando su RFID o buscándolos en el listado de personal.</DialogDescription>
+          <DialogDescription>
+            Busca personas por su ID/RFID o registra votantes externos sin registro previo.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto pr-2 space-y-6 py-4">
@@ -198,17 +210,22 @@ export function CreateGroupDialog() {
           <div className="space-y-4">
             <div className="flex flex-col gap-2">
               <FormLabel className="flex items-center gap-2">
-                <Fingerprint className="h-4 w-4" /> Registrar por RFID o ID
+                <Fingerprint className="h-4 w-4" /> Registrar por ID o RFID
               </FormLabel>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input 
-                    placeholder="Escanea RFID o escribe ID de registro..." 
+                    placeholder="Escanea RFID o escribe número de registro..." 
                     className="pl-9"
                     value={searchId}
                     onChange={(e) => setSearchId(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && addFoundVoter()}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addFoundVoter();
+                        }
+                    }}
                   />
                 </div>
                 <Button type="button" onClick={addFoundVoter} disabled={!foundVoterInList}>
@@ -217,7 +234,7 @@ export function CreateGroupDialog() {
               </div>
               {searchId.trim() && !foundVoterInList && (
                 <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> Votante no encontrado en el listado de personal.
+                  <AlertCircle className="h-3 w-3" /> No se encontró ninguna persona con ese ID en el listado de personal.
                 </p>
               )}
               {foundVoterInList && (
@@ -239,11 +256,11 @@ export function CreateGroupDialog() {
                 onClick={() => setShowManualForm(!showManualForm)}
               >
                 <UserPlus className="mr-2 h-4 w-4" /> 
-                {showManualForm ? "Cancelar registro manual" : "Agregar votante sin registro previo"}
+                {showManualForm ? "Cancelar registro externo" : "Agregar votante externo (sin registro previo)"}
               </Button>
 
               {showManualForm && (
-                <CardContent className="border rounded-md p-4 space-y-3 bg-muted/30">
+                <div className="border rounded-md p-4 space-y-3 bg-muted/30">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <FormLabel className="text-xs">Nombres</FormLabel>
@@ -255,9 +272,9 @@ export function CreateGroupDialog() {
                     </div>
                   </div>
                   <Button type="button" size="sm" className="w-full" onClick={addManualVoter}>
-                    Registrar y Agregar al Grupo
+                    Asignar ID Externo y Agregar
                   </Button>
-                </CardContent>
+                </div>
               )}
             </div>
           </div>
