@@ -1,4 +1,3 @@
-
 'use client';
 import {
   Bar,
@@ -7,7 +6,6 @@ import {
   YAxis,
   Tooltip,
   Cell,
-  ResponsiveContainer
 } from "recharts"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, Vote, VoterStatus } from '@/lib/types';
@@ -25,7 +23,8 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 
 interface PollResultsDialogProps {
