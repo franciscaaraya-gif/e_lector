@@ -1,14 +1,11 @@
 'use client';
 
-import { useState, ChangeEvent, DragEvent, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import * as XLSX from 'xlsx';
-import { addDoc, collection, serverTimestamp, getDocs, orderBy, query, where, type Firestore, doc, documentId } from 'firebase/firestore';
-import { initializeApp, getApp, type FirebaseApp, deleteApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { FileUp, Loader2, PlusCircle, Trash2, Import } from 'lucide-react';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { Loader2, PlusCircle, Trash2, Search, UserPlus, Fingerprint, AlertCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -20,335 +17,153 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useUser } from '@/firebase';
+import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn } from '@/lib/utils';
 import { ScrollArea } from '../ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { ListaCompletaItem, VoterInfo } from '@/lib/types';
+import { Separator } from '../ui/separator';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }).max(50, { message: 'El nombre no puede tener más de 50 caracteres.' }),
 });
 
-type ParsedVoter = {
-    id: string;
-    nombre: string;
-    apellido: string;
-    enabled: boolean;
-}
-
-type Llamado = {
-    id: string;
-    nombre: string;
-    fecha: any;
-};
-
 export function CreateGroupDialog() {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const [parsedVoters, setParsedVoters] = useState<ParsedVoter[]>([]);
+  const [votersInGroup, setVotersInGroup] = useState<VoterInfo[]>([]);
+  const [searchId, setSearchId] = useState('');
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualNames, setManualNames] = useState('');
+  const [manualLastNames, setManualLastNames] = useState('');
+  
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
 
-  const [secondaryDb, setSecondaryDb] = useState<Firestore | null>(null);
-  const [llamados, setLlamados] = useState<Llamado[]>([]);
-  const [isLoadingLlamados, setIsLoadingLlamados] = useState(false);
-  const [loadLlamadosError, setLoadLlamadosError] = useState('');
-  const [selectedLlamadoId, setSelectedLlamadoId] = useState('');
-  const [isImporting, setIsImporting] = useState(false);
+  // Load complete list of personnel for validation
+  const personalQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'admins', user.uid, 'lista_completa');
+  }, [firestore, user]);
+
+  const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: { name: '' },
   });
 
-  const resetState = async () => {
+  const resetState = () => {
     form.reset();
+    setVotersInGroup([]);
+    setSearchId('');
+    setShowManualForm(false);
+    setManualNames('');
+    setManualLastNames('');
     setIsLoading(false);
-    setIsDragging(false);
-    setFileName('');
-    setParsedVoters([]);
-    setLlamados([]);
-    setLoadLlamadosError('');
-    setIsLoadingLlamados(false);
-    setSelectedLlamadoId('');
-    setIsImporting(false);
-
-    try {
-      if (getApp('import-app')) {
-        const appInstance = getApp('import-app');
-        await deleteApp(appInstance);
-      }
-    } catch (e) {
-      // App might not have been initialized, safe to ignore
-    }
-    setSecondaryDb(null);
   };
 
-  useEffect(() => {
-    // Do not proceed if the dialog is closed or the user is not authenticated.
-    if (!open || !user) return;
+  // Find voter in personnel list by ID or Registry
+  const foundVoterInList = useMemo(() => {
+    if (!searchId.trim() || !personnel) return null;
+    const search = searchId.trim().toLowerCase();
+    return personnel.find(p => 
+      String(p.regGeneral).toLowerCase() === search || 
+      p.id.toLowerCase() === search
+    );
+  }, [searchId, personnel]);
 
-    const connectAndFetch = async () => {
-        setIsLoadingLlamados(true);
-        setLoadLlamadosError('');
-        setLlamados([]);
+  const addFoundVoter = () => {
+    if (!foundVoterInList) return;
+    
+    // Check if already in group
+    if (votersInGroup.some(v => v.id === foundVoterInList.id)) {
+      toast({ variant: 'destructive', title: 'Ya agregado', description: 'Este votante ya está en el grupo.' });
+      return;
+    }
 
-        // --- GUÍA DE CONFIGURACIÓN ---
-        // Para importar desde la "App de Listas", añade la configuración de ese proyecto
-        // de Firebase a un archivo .env.local en la raíz de este proyecto.
-        const secondaryFirebaseConfig = {
-          apiKey: process.env.NEXT_PUBLIC_EXTERNAL_PROJECT_API_KEY as string,
-          authDomain: "ma-apps-2d75f.firebaseapp.com",
-          projectId: "ma-apps-2d75f",
-          storageBucket: "ma-apps-2d75f.firebasestorage.app",
-          messagingSenderId: "841893715709",
-          appId: "1:841893715709:web:30918447bb56fca4b92894"
-        };
-        // -----------------------------
-
-        if (!secondaryFirebaseConfig.apiKey) {
-            setLoadLlamadosError("La configuración para importar no se encontró. Crea un archivo .env.local con las variables NEXT_PUBLIC_EXTERNAL_* y reinicia el servidor.");
-            setIsLoadingLlamados(false);
-            return;
-        }
-
-        try {
-            let appInstance: FirebaseApp;
-            try {
-                appInstance = getApp('import-app');
-            } catch (e) {
-                appInstance = initializeApp(secondaryFirebaseConfig, 'import-app');
-            }
-            
-            const db = getFirestore(appInstance);
-            setSecondaryDb(db);
-
-            const callsCol = collection(db, 'llamados');
-            const q = query(callsCol, orderBy('fecha', 'desc'));
-            const snapshot = await getDocs(q);
-
-            const loadedLlamados = Object.values(
-              snapshot.docs.reduce((acc, doc) => {
-                const data = doc.data();
-                if (!data) return acc;
-
-                let fechaString = 'Fecha inválida';
-                const fechaForQuery = data.fecha; // Keep original value for querying
-
-                if (data.fecha && typeof data.fecha === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data.fecha)) {
-                    const [year, month, day] = data.fecha.split('-');
-                    fechaString = `${day}/${month}/${year}`;
-                } else if (data.fecha && typeof data.fecha.toDate === 'function') { // Fallback for Timestamps
-                    const fechaDate = data.fecha.toDate();
-                    fechaString = fechaDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                }
-                
-                const key = `${fechaString}|${data.clave || 'S/C'}|${data.direccion || 'S/D'}|${data.maquina || 'S/M'}`;
-            
-                if (acc[key] || !data.clave || !data.direccion || !data.maquina) return acc;
-            
-                acc[key] = {
-                  id: key,
-                  fecha: fechaForQuery, // Use original value for querying later
-                  nombre: `${fechaString} - ${data.clave} - ${data.direccion} - ${data.maquina}`,
-                };
-            
-                return acc;
-              }, {} as Record<string, any>)
-            );
-            
-            setLlamados(loadedLlamados);
-        } catch (error: any) {
-            console.error("Error en la conexión automática:", error);
-            setLoadLlamadosError(`Error al conectar o leer datos: ${error.message}`);
-        } finally {
-            setIsLoadingLlamados(false);
-        }
-    };
-
-    connectAndFetch();
-
-  }, [open, user]);
-
-  const handleFile = (file: File) => {
-    if (!file) return;
-    setFileName(file.name);
-    setParsedVoters([]);
-    setIsLoading(true);
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = e.target?.result;
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<any>(worksheet);
-
-        const voters = rows
-            .map(row => {
-                const idKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('id'));
-                const apellidoKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('apellido'));
-                const nombreKey = Object.keys(row).find(k => k.toLowerCase().trim().includes('nombre'));
-
-                if (!idKey || !row[idKey]) return null;
-
-                return {
-                    id: String(row[idKey]).trim(),
-                    apellido: apellidoKey ? String(row[apellidoKey] || '').trim() : '',
-                    nombre: nombreKey ? String(row[nombreKey] || '').trim() : '',
-                    enabled: true,
-                };
-            }).filter((v): v is ParsedVoter => v !== null);
-
-
-        if (voters.length === 0){
-            toast({ variant: 'destructive', title: 'Archivo no válido', description: "No se encontraron votantes. Asegúrate de que el archivo tenga una fila de cabecera con columnas que incluyan 'id', 'apellido' y 'nombre'."});
-            setFileName('');
-            return;
-        }
-        setParsedVoters(voters);
-        toast({ title: 'Archivo procesado', description: `Se han encontrado ${voters.length} votantes para importar.` });
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Error al procesar el archivo', description: 'El formato del archivo es incorrecto.' });
-        setFileName('');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    reader.onerror = () => { toast({ variant: 'destructive', title: 'Error al leer el archivo' }); setIsLoading(false); }
-    reader.readAsArrayBuffer(file);
+    setVotersInGroup([...votersInGroup, {
+      id: foundVoterInList.regGeneral || foundVoterInList.id,
+      nombre: foundVoterInList.nombres,
+      apellido: foundVoterInList.apellidos,
+      enabled: true
+    }]);
+    setSearchId('');
+    toast({ title: 'Agregado', description: `${foundVoterInList.nombres} ha sido agregado al grupo.` });
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFile(e.target.files[0]); };
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-  const handleRemoveFile = () => { setFileName(''); setParsedVoters([]); const fileInput = document.getElementById('file-upload') as HTMLInputElement; if(fileInput) fileInput.value = ''; };
-  
-  const handleImportFromLlamado = async () => {
-    if (!secondaryDb || !selectedLlamadoId) return;
-  
-    setIsImporting(true);
-    setParsedVoters([]);
-  
-    try {
-      const llamado = llamados.find(l => l.id === selectedLlamadoId);
-      if (!llamado || !llamado.fecha) {
-        throw new Error("No se pudo encontrar la fecha del llamado seleccionado.");
-      }
-      
-      const [_fechaStr, clave, direccion, maquina] = llamado.id.split('|');
-
-      const qLlamados = query(
-        collection(secondaryDb, 'llamados'),
-        where('fecha', '==', llamado.fecha),
-        where('clave', '==', clave),
-        where('direccion', '==', direccion),
-        where('maquina', '==', maquina)
-      );
-  
-      const llamadosSnap = await getDocs(qLlamados);
-  
-      if (llamadosSnap.empty) {
-        toast({
-          title: 'Sin voluntarios',
-          description: 'Este llamado no tiene voluntarios asociados',
-        });
-        setIsImporting(false);
-        return;
-      }
-  
-      const volunteerIds = Array.from(new Set(llamadosSnap.docs.map(d => d.data().voluntarioId).filter(Boolean)));
-  
-      if (volunteerIds.length === 0) {
-        toast({
-          title: 'Sin voluntarios',
-          description: 'Se encontraron registros del llamado, pero sin IDs de voluntarios válidos.',
-        });
-        setIsImporting(false);
-        return;
-      }
-  
-      const volunteers: ParsedVoter[] = [];
-      const volunteersCol = collection(secondaryDb, 'voluntarios');
-  
-      // Firestore 'in' query supports up to 30 elements in the array
-      for (let i = 0; i < volunteerIds.length; i += 30) {
-        const chunk = volunteerIds.slice(i, i + 30);
-        if (chunk.length === 0) continue;
-
-        const qVols = query(
-          volunteersCol,
-          where(documentId(), 'in', chunk)
-        );
-        
-        const volSnap = await getDocs(qVols);
-  
-        volSnap.forEach(docSnap => {
-          const v = docSnap.data();
-          if (v) {
-            volunteers.push({
-                id: v.regNacional || docSnap.id,
-                nombre: v.nombre || '',
-                apellido: v.apellidos || '',
-                enabled: true,
-            });
-          }
-        });
-      }
-  
-      setParsedVoters(volunteers);
-      const llamadoName = llamado?.nombre || selectedLlamadoId;
-      setFileName(`Importado de: ${llamadoName}`);
-      toast({ title: 'Voluntarios importados', description: `Se cargaron ${volunteers.length} voluntarios del llamado.` });
-  
-    } catch (error: any) {
-      console.error("Error durante la importación:", error);
-      let description = error.message || 'Ocurrió un error desconocido durante la importación.';
-       if (error.code === 'failed-precondition' && error.message.includes('index')) {
-            description = 'Falta un índice en la base de datos de "App de Listas". Revisa la consola del navegador para crearlo.';
-        }
-      toast({
-        variant: 'destructive',
-        title: 'Error al importar',
-        description,
-      });
-    } finally {
-      setIsImporting(false);
+  const addManualVoter = () => {
+    if (!manualNames.trim() || !manualLastNames.trim()) {
+      toast({ variant: 'destructive', title: 'Datos incompletos', description: 'Por favor ingresa nombre y apellido.' });
+      return;
     }
+
+    // Generate a unique numeric ID that doesn't conflict
+    let newId = '';
+    let isUnique = false;
+    while (!isUnique) {
+      const randomId = Math.floor(100000 + Math.random() * 900000).toString();
+      const existsInList = personnel?.some(p => String(p.regGeneral) === randomId);
+      const existsInGroup = votersInGroup.some(v => v.id === randomId);
+      if (!existsInList && !existsInGroup) {
+        newId = randomId;
+        isUnique = true;
+      }
+    }
+
+    setVotersInGroup([...votersInGroup, {
+      id: newId,
+      nombre: manualNames.trim(),
+      apellido: manualLastNames.trim(),
+      enabled: true
+    }]);
+    
+    setManualNames('');
+    setManualLastNames('');
+    setShowManualForm(false);
+    toast({ title: 'Votante Externo Agregado', description: `Se ha registrado con el ID temporal: ${newId}` });
+  };
+
+  const removeVoter = (id: string) => {
+    setVotersInGroup(votersInGroup.filter(v => v.id !== id));
   };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore || !user) return toast({ variant: 'destructive', title: 'Error de Autenticación' });
-    if (parsedVoters.length === 0) return toast({ variant: 'destructive', title: 'No hay votantes', description: 'Por favor, sube o importa una lista de votantes.' });
+    if (!firestore || !user) return;
+    if (votersInGroup.length === 0) {
+      toast({ variant: 'destructive', title: 'Grupo vacío', description: 'Debes agregar al menos un votante.' });
+      return;
+    }
 
     setIsLoading(true);
-    const uniqueVoters = Array.from(new Map(parsedVoters.map(item => [item.id, item])).values());
-    const newGroupData = { name: values.name, adminId: user.uid, voters: uniqueVoters, createdAt: serverTimestamp() };
+    const newGroupData = {
+      name: values.name,
+      adminId: user.uid,
+      voters: votersInGroup,
+      createdAt: serverTimestamp()
+    };
+    
     const groupsCollection = collection(firestore, 'admins', user.uid, 'groups');
 
     try {
-        await addDoc(groupsCollection, newGroupData);
-        toast({ title: 'Grupo Creado', description: `El grupo "${values.name}" se creó con ${uniqueVoters.length} votantes.` });
-        setOpen(false);
-        resetState();
+      await addDoc(groupsCollection, newGroupData);
+      toast({ title: '¡Grupo Creado!', description: `El grupo "${values.name}" se creó con ${votersInGroup.length} votantes.` });
+      setOpen(false);
+      resetState();
     } catch (error) {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({ path: groupsCollection.path, operation: 'create', requestResourceData: newGroupData }));
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ 
+        path: groupsCollection.path, 
+        operation: 'create', 
+        requestResourceData: newGroupData 
+      }));
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   }
 
@@ -357,99 +172,149 @@ export function CreateGroupDialog() {
       <DialogTrigger asChild>
         <Button className="w-full sm:w-auto"><PlusCircle className="mr-2 h-4 w-4" />Crear Grupo</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl max-h-[90dvh] flex flex-col" onInteractOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-2xl max-h-[95dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Crear Nuevo Grupo</DialogTitle>
-          <DialogDescription>Crea un grupo de votantes subiendo un archivo o importándolo desde tu App de Listas.</DialogDescription>
+          <DialogTitle>Crear Nuevo Grupo de Votantes</DialogTitle>
+          <DialogDescription>Agrega votantes escaneando su RFID o buscándolos en el listado de personal.</DialogDescription>
         </DialogHeader>
-        <div className="flex-1 min-h-0 overflow-y-auto pr-6 -mr-6">
-            <Form {...form}>
-              <form id="create-group-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField control={form.control} name="name" render={({ field }) => (
-                    <FormItem><FormLabel>Nombre del Grupo</FormLabel><FormControl><Input placeholder="Ej: Voluntarios de la campaña" {...field} disabled={isLoading} /></FormControl><FormMessage /></FormItem>
-                )}/>
-                
-                <Tabs defaultValue="upload" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="upload"><FileUp className="mr-2 h-4 w-4"/>Subir Archivo</TabsTrigger>
-                        <TabsTrigger value="import"><Import className="mr-2 h-4 w-4"/>Importar de App de Listas</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="upload" className="pt-4">
-                        <FormItem>
-                            <FormLabel>Archivo de Votantes</FormLabel>
-                            <div className={cn("relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors", isDragging && "border-primary bg-primary/10")}
-                                onDrop={handleDrop} onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onClick={() => document.getElementById('file-upload')?.click()}>
-                                <FileUp className="w-10 h-10 text-muted-foreground" /><p className="mt-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Haz clic para subir</span> o arrastra</p><p className="text-xs text-muted-foreground">Archivo Excel (.xlsx, .csv)</p>
-                                <Input id="file-upload" type="file" className="hidden" accept=".xlsx, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileChange} disabled={isLoading}/>
-                            </div>
-                            <FormDescription className="pt-2">
-                                Asegúrate de que tu archivo tenga una fila de cabecera. El sistema buscará automáticamente columnas que contengan 'id', 'apellido' y 'nombre'.
-                            </FormDescription>
-                        </FormItem>
-                    </TabsContent>
-                     <TabsContent value="import" className="pt-4 space-y-4">
-                        {isLoadingLlamados && (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                <span>Conectando y cargando llamados...</span>
-                            </div>
-                        )}
 
-                        {loadLlamadosError && <Alert variant="destructive"><AlertTitle>Error de Conexión</AlertTitle><AlertDescription>{loadLlamadosError}</AlertDescription></Alert>}
+        <div className="flex-1 overflow-y-auto pr-2 space-y-6 py-4">
+          <Form {...form}>
+            <form id="create-group-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField control={form.control} name="name" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre del Grupo</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Ej: Junta Extraordinaria 2024" {...field} disabled={isLoading} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}/>
+            </form>
+          </Form>
 
-                        {!isLoadingLlamados && !loadLlamadosError && (
-                            llamados.length > 0 ? (
-                                <div className="space-y-4">
-                                    <FormItem>
-                                        <FormLabel>1. Seleccionar Llamado</FormLabel>
-                                        <Select onValueChange={setSelectedLlamadoId} value={selectedLlamadoId} disabled={isImporting}>
-                                            <FormControl>
-                                                <SelectTrigger><SelectValue placeholder="Selecciona un llamado para importar..." /></SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {llamados.map((l) => (<SelectItem key={l.id} value={l.id}>{l.nombre}</SelectItem>))}
-                                            </SelectContent>
-                                        </Select>
-                                    </FormItem>
-                                    <Button type="button" onClick={handleImportFromLlamado} disabled={isImporting || !selectedLlamadoId || !secondaryDb}>
-                                        {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Import className="mr-2 h-4 w-4" />}
-                                        2. Importar Voluntarios del Llamado
-                                    </Button>
-                                </div>
-                            ) : (
-                                 <p className="text-sm text-muted-foreground text-center py-4">No se encontraron llamados en la aplicación de listas.</p>
-                            )
-                        )}
-                    </TabsContent>
-                </Tabs>
+          <Separator />
 
-                {parsedVoters.length > 0 && (
-                    <div className="space-y-2 pt-4 border-t">
-                        <div className="flex items-center justify-between"><h4 className="text-sm font-medium">Votantes a Importar: {parsedVoters.length}</h4>
-                            <Button type="button" variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleRemoveFile}><Trash2 className="mr-1 h-3 w-3" /> Limpiar</Button>
-                        </div>
-                        <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-medium'>{fileName}</span>. Los IDs duplicados serán omitidos.</p>
-                        <ScrollArea className="h-40 border rounded-md">
-                            <Table>
-                                <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Nombre Completo</TableHead></TableRow></TableHeader>
-                                <TableBody>
-                                    {parsedVoters.map((voter, index) => (
-                                        <TableRow key={`${voter.id}-${index}`}><TableCell className="font-mono text-xs">{voter.id}</TableCell><TableCell>{voter.nombre} {voter.apellido}</TableCell></TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </ScrollArea>
+          <div className="space-y-4">
+            <div className="flex flex-col gap-2">
+              <FormLabel className="flex items-center gap-2">
+                <Fingerprint className="h-4 w-4" /> Registrar por RFID o ID
+              </FormLabel>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    placeholder="Escanea RFID o escribe ID de registro..." 
+                    className="pl-9"
+                    value={searchId}
+                    onChange={(e) => setSearchId(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addFoundVoter()}
+                  />
+                </div>
+                <Button type="button" onClick={addFoundVoter} disabled={!foundVoterInList}>
+                  Agregar
+                </Button>
+              </div>
+              {searchId.trim() && !foundVoterInList && (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Votante no encontrado en el listado de personal.
+                </p>
+              )}
+              {foundVoterInList && (
+                <Alert className="bg-primary/5 border-primary/20 py-2">
+                  <AlertDescription className="text-sm font-medium flex justify-between items-center">
+                    <span>Encontrado: {foundVoterInList.nombres} {foundVoterInList.apellidos}</span>
+                    <span className="text-xs text-muted-foreground bg-background px-2 py-0.5 rounded border">{foundVoterInList.tipo}</span>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+
+            <div className="space-y-3">
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="sm" 
+                className="w-full text-xs" 
+                onClick={() => setShowManualForm(!showManualForm)}
+              >
+                <UserPlus className="mr-2 h-4 w-4" /> 
+                {showManualForm ? "Cancelar registro manual" : "Agregar votante sin registro previo"}
+              </Button>
+
+              {showManualForm && (
+                <CardContent className="border rounded-md p-4 space-y-3 bg-muted/30">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <FormLabel className="text-xs">Nombres</FormLabel>
+                      <Input value={manualNames} onChange={(e) => setManualNames(e.target.value)} placeholder="Ej: Juan Pedro" />
                     </div>
-                )}
-              </form>
-            </Form>
+                    <div className="space-y-1">
+                      <FormLabel className="text-xs">Apellidos</FormLabel>
+                      <Input value={manualLastNames} onChange={(e) => setManualLastNames(e.target.value)} placeholder="Ej: Soto Pérez" />
+                    </div>
+                  </div>
+                  <Button type="button" size="sm" className="w-full" onClick={addManualVoter}>
+                    Registrar y Agregar al Grupo
+                  </Button>
+                </CardContent>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold flex justify-between">
+              Votantes en el grupo: <span>{votersInGroup.length}</span>
+            </h4>
+            <div className="border rounded-md">
+              <ScrollArea className="h-[200px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-24">ID/Reg</TableHead>
+                      <TableHead>Nombre Completo</TableHead>
+                      <TableHead className="w-10"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {votersInGroup.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center h-24 text-muted-foreground text-xs italic">
+                          No se han agregado votantes al grupo.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      votersInGroup.map((voter) => (
+                        <TableRow key={voter.id}>
+                          <TableCell className="font-mono text-xs">{voter.id}</TableCell>
+                          <TableCell className="text-xs">{voter.nombre} {voter.apellido}</TableCell>
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => removeVoter(voter.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          </div>
         </div>
 
-        <DialogFooter className="pt-4 border-t mt-auto">
-          <Button type="button" variant="ghost" onClick={() => { setOpen(false); resetState(); }} disabled={isLoading}>Cancelar</Button>
-          <Button type="submit" form="create-group-form" disabled={isLoading || parsedVoters.length === 0}>
+        <DialogFooter className="border-t pt-4">
+          <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button type="submit" form="create-group-form" disabled={isLoading || votersInGroup.length === 0}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Crear Grupo
+            Guardar Grupo
           </Button>
         </DialogFooter>
       </DialogContent>
