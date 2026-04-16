@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, ChangeEvent, DragEvent } from 'react';
@@ -83,7 +84,7 @@ export function VoluntariosManager() {
         
         const getColumn = (normalizedName: string) => headerMap[normalizedName];
 
-        const voluntarios = rows.map(row => {
+        const voluntarios = rows.map((row): ParsedVoluntario | null => {
           const nombre = String(row[getColumn('NOMBRE')] || '').trim();
           const segundoNombre = String(row[getColumn('SEGUNDONOMBRE')] || '').trim();
           const primerApellido = String(row[getColumn('PRIMERAPELLIDO')] || '').trim();
