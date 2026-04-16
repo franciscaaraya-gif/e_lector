@@ -26,10 +26,12 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
         return doc(firestore, 'admins', voterStatus.adminId, 'polls', voterStatus.pollId);
     }, [firestore, voterStatus.adminId, voterStatus.pollId]);
 
-    const { data: poll, isLoading } = useDoc<Poll>(pollRef);
+    const { data: poll, isLoading, error } = useDoc<Poll>(pollRef);
 
     if (isLoading) return <Card className="animate-pulse h-32" />;
-    if (!poll || poll.status !== 'active') return null;
+    
+    // If there's an error reading a specific poll, we just don't show it in the list
+    if (error || !poll || poll.status !== 'active') return null;
 
     return (
         <Card>
@@ -66,6 +68,7 @@ function PollsInboxClient() {
         if (!auth || isAuthLoading || user) return;
 
         signInAnonymously(auth).catch(err => {
+            console.error("Auth error:", err);
             setAuthError("Se requiere autenticación para ver tus votaciones.");
         });
     }, [auth, user, isAuthLoading]);
@@ -90,7 +93,7 @@ function PollsInboxClient() {
     }, [voterId, salaId, router]);
 
     const isLoading = isDocsLoading || isAuthLoading;
-    const error = authError || (docsError ? 'Permiso denegado o error de configuración. Verifica los datos o el índice de Firestore.' : '');
+    const error = authError || (docsError ? 'Error al cargar votaciones. Asegúrate de que el ID sea correcto y que existan los índices necesarios en Firestore.' : '');
 
     if (isLoading) {
         return <InboxLoading />;
@@ -100,7 +103,7 @@ function PollsInboxClient() {
         return (
              <Card>
                 <CardHeader>
-                    <CardTitle>Error</CardTitle>
+                    <CardTitle>Bandeja de Entrada</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Alert variant="destructive">
@@ -129,7 +132,7 @@ function PollsInboxClient() {
                     Sala: <span className="font-mono bg-muted px-2 py-0.5 rounded">{salaId}</span>
                 </p>
                 <p className="text-muted-foreground text-sm">
-                    ID de Votante: <span className="font-mono bg-muted px-2 py-0.5 rounded">{voterId}</span>
+                    Votante: <span className="font-mono bg-muted px-2 py-0.5 rounded">{voterId}</span>
                 </p>
              </div>
 
