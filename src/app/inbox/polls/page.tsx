@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { collectionGroup, query, where } from 'firebase/firestore';
+import { collectionGroup, query, where, doc } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import Link from 'next/link';
 
@@ -49,9 +49,6 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
         </Card>
     );
 }
-
-// Fixed import for doc
-import { doc } from 'firebase/firestore';
 
 function PollsInboxClient() {
     const searchParams = useSearchParams();
