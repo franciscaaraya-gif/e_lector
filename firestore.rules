@@ -31,7 +31,6 @@ service cloud.firestore {
     // This allows the real-time inbox to query pending polls across all admins.
     match /{path=**}/voters/{vDocId} {
         // Any signed-in user (including anonymous) can read their voter status.
-        // We rely on the query filters (voterId, adminId) to keep data private.
         allow read: if isSignedIn();
         
         // Only the admin owner can manage the voter registry.
@@ -46,7 +45,7 @@ service cloud.firestore {
     match /{path=**}/votes/{voteId} {
         allow get, list, update, delete: if false;
         // Allow anyone signed-in to create a vote (it must be associated with an admin and poll).
-        allow create: if isSignedIn() && request.resource.data.pollId != null && request.resource.data.adminId != null;
+        allow create: if isSignedIn();
     }
 
     // ------------------------------------------------------------------------
@@ -69,7 +68,7 @@ service cloud.firestore {
 
           match /votes/{voteId} {
             allow get, list, delete: if isOwner(adminId);
-            allow create, update: if false; // Votes are created via collectionGroup/root rule
+            allow create, update: if false; 
           }
         }
 

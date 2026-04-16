@@ -13,7 +13,7 @@ import { Poll, VoterStatus } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft, Info } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Info, ExternalLink } from 'lucide-react';
 import InboxLoading from './loading';
 
 /**
@@ -30,13 +30,12 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
 
     if (isLoading) return <Card className="animate-pulse h-32" />;
     
-    // If there's an error reading a specific poll, we just don't show it in the list
     if (error || !poll || poll.status !== 'active') return null;
 
     return (
-        <Card>
+        <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
             <CardHeader>
-                <CardTitle className="truncate">{poll.question}</CardTitle>
+                <CardTitle className="truncate text-lg">{poll.question}</CardTitle>
                 <CardDescription>
                     {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (hasta ${poll.maxSelections} opciones)`}
                 </CardDescription>
@@ -44,7 +43,7 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
             <CardFooter>
                 <Button asChild className="w-full">
                     <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
-                        Ir a Votar
+                        Ir a Votar Ahora
                     </Link>
                 </Button>
             </CardFooter>
@@ -63,7 +62,6 @@ function PollsInboxClient() {
     const auth = useAuth();
     const { user, isUserLoading: isAuthLoading } = useUser();
 
-     // Anonymous sign-in effect
     useEffect(() => {
         if (!auth || isAuthLoading || user) return;
 
@@ -73,7 +71,6 @@ function PollsInboxClient() {
         });
     }, [auth, user, isAuthLoading]);
 
-    // Real-time query for voter documents
     const votersQuery = useMemoFirebase(() => {
         if (!firestore || !voterId || !salaId || !user) return null;
         return query(
@@ -93,40 +90,41 @@ function PollsInboxClient() {
     }, [voterId, salaId, router]);
 
     const isLoading = isDocsLoading || isAuthLoading;
-    const error = authError || (docsError ? 'Error de conexión con la base de datos.' : '');
 
     if (isLoading) {
         return <InboxLoading />;
     }
 
-    if (error) {
+    if (docsError || authError) {
         return (
-             <Card>
+             <Card className="border-destructive">
                 <CardHeader>
-                    <CardTitle>Bandeja de Entrada</CardTitle>
+                    <CardTitle className="text-destructive flex items-center gap-2">
+                        <AlertCircle className="h-6 w-6" />
+                        Atención Requerida
+                    </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <Alert variant="destructive">
-                        <AlertCircle className="h-4 w-4" />
-                        <AlertTitle>No se pudieron cargar las votaciones</AlertTitle>
-                        <AlertDescription>{error}</AlertDescription>
-                    </Alert>
+                    <p className="text-sm font-medium">No se pueden cargar las votaciones debido a que falta un índice en la base de datos.</p>
                     
-                    <Alert className="bg-blue-50 border-blue-200">
-                        <Info className="h-4 w-4 text-blue-600" />
-                        <AlertTitle className="text-blue-800">Acción Requerida</AlertTitle>
-                        <AlertDescription className="text-blue-700 text-sm">
-                            Este error suele ocurrir por falta de un índice en la base de datos.
-                            <br /><br />
-                            <strong>Para solucionarlo:</strong> Abre la consola de tu navegador (F12), busca el error de Firebase y haz clic en la URL que aparece allí para crear el índice automáticamente en tu panel de control.
-                        </AlertDescription>
-                    </Alert>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                        <h4 className="font-bold text-blue-900 flex items-center gap-2">
+                            <Info className="h-4 w-4" /> Pasos para solucionar:
+                        </h4>
+                        <ol className="text-sm text-blue-800 list-decimal list-inside space-y-2">
+                            <li>Presiona la tecla <b>F12</b> de tu teclado.</li>
+                            <li>Haz clic en la pestaña que dice <b>"Console"</b> (o Consola).</li>
+                            <li>Busca un mensaje en rojo y haz clic en el <b>enlace azul</b> que empieza con <code className="text-[10px] bg-blue-100 px-1">https://console.firebase...</code></li>
+                            <li>Se abrirá una ventana de Firebase: haz clic en el botón <b>"Crear índice"</b>.</li>
+                            <li>Espera 2-3 minutos y vuelve a esta página.</li>
+                        </ol>
+                    </div>
                 </CardContent>
                 <CardFooter>
                     <Button asChild variant="outline" className='w-full'>
                         <Link href="/inbox">
                             <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver
+                            Volver atrás
                         </Link>
                     </Button>
                 </CardFooter>
@@ -135,28 +133,27 @@ function PollsInboxClient() {
     }
     
     return (
-        <div className="w-full space-y-4">
-             <div className="text-center">
-                <h1 className="text-2xl font-bold font-headline">Tus Votaciones Activas</h1>
-                <p className="text-muted-foreground text-sm">
-                    Sala: <span className="font-mono bg-muted px-2 py-0.5 rounded">{salaId}</span>
-                </p>
-                <p className="text-muted-foreground text-sm">
-                    Votante: <span className="font-mono bg-muted px-2 py-0.5 rounded">{voterId}</span>
-                </p>
+        <div className="w-full space-y-6">
+             <div className="text-center space-y-2">
+                <h1 className="text-2xl font-bold font-headline">Bandeja de Entrada</h1>
+                <div className="flex flex-wrap justify-center gap-2">
+                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">Sala: {salaId}</span>
+                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">ID: {voterId}</span>
+                </div>
              </div>
 
             {!voterDocs || voterDocs.length === 0 ? (
-                <Card className="text-center p-8">
-                    <CardHeader>
-                        <CardTitle>¡Todo listo por ahora!</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-muted-foreground">No tienes votaciones pendientes en este momento. Estas aparecerán automáticamente cuando sean activadas.</p>
+                <Card className="text-center p-8 border-dashed border-2 bg-muted/30">
+                    <CardContent className="pt-6">
+                        <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <Info className="h-8 w-8 text-primary" />
+                        </div>
+                        <CardTitle className="mb-2">Sin votaciones pendientes</CardTitle>
+                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Cuando se inicie una, aparecerá aquí automáticamente.</p>
                     </CardContent>
                 </Card>
             ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     {voterDocs.map(voterDoc => (
                         <PollInboxItem 
                             key={voterDoc.id} 
