@@ -23,8 +23,10 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "../ui/button";
+import * as XLSX from 'xlsx';
 
 
 interface PollResultsDialogProps {
@@ -48,9 +50,9 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
     }, [firestore, user, poll.id]);
 
     const { data: votes, isLoading: votesLoading } = useCollection<Vote>(votesRef);
-    const { data: votersStatus, isLoading: votersLoading } = useCollection<VoterStatus>(votersRef);
+    const { data: votersStatus, isLoading: votersStatusLoading } = useCollection<VoterStatus>(votersRef);
 
-    const isLoading = votesLoading || votersLoading;
+    const isLoading = votesLoading || votersStatusLoading;
 
     const stats = useMemo(() => {
         if (!votersStatus || !votes) return null;
@@ -89,6 +91,44 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         })).sort((a, b) => b.votes - a.votes);
     }, [votes, poll.options]);
 
+    const handleDownloadExcel = () => {
+        if (!stats) return;
+
+        const wb = XLSX.utils.book_new();
+        
+        // 1. Datos del Informe General
+        const reportInfo = [
+            ["INFORME DE VOTACIÓN E-LECTOR"],
+            [""],
+            ["Pregunta:", poll.question],
+            ["Estado:", poll.status === 'closed' ? "Cerrada" : (poll.status === 'active' ? "Activa" : "Pendiente")],
+            ["Fecha Activación:", poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
+            ["Fecha Cierre:", poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
+            [""],
+            ["RESUMEN ESTADÍSTICO"],
+            ["Universo de Votantes:", stats.universe],
+            ["Habilitados:", stats.enabled],
+            ["No Habilitados:", stats.disabled],
+            ["Votos Emitidos:", stats.cast],
+            ["Participación:", `${stats.participation.toFixed(1)}%`],
+            [""],
+            ["RESULTADOS POR OPCIÓN"],
+            ["Opción", "Votos Recibidos", "Porcentaje (%)"]
+        ];
+
+        chartData.forEach(item => {
+            reportInfo.push([item.name, item.votes.toString(), `${item.percentage.toFixed(1)}%`]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(reportInfo);
+        
+        // Estilos básicos de ancho de columna
+        ws['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 15 }];
+
+        XLSX.utils.book_append_sheet(wb, ws, "Informe");
+        XLSX.writeFile(wb, `Informe_Votacion_${poll.id}.xlsx`);
+    };
+
     const chartConfig = {
       votes: {
         label: "Votos",
@@ -99,11 +139,16 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle className="text-xl">Informe de Votación</DialogTitle>
-                    <DialogDescription className="text-primary font-medium">
-                       {poll.question}
-                    </DialogDescription>
+                <DialogHeader className="flex flex-row items-start justify-between gap-4 pr-8">
+                    <div className="space-y-1">
+                        <DialogTitle className="text-xl">Informe de Votación</DialogTitle>
+                        <DialogDescription className="text-primary font-medium">
+                           {poll.question}
+                        </DialogDescription>
+                    </div>
+                    <Button onClick={handleDownloadExcel} variant="outline" size="sm" className="shrink-0" disabled={isLoading}>
+                        <Download className="mr-2 h-4 w-4" /> Exportar
+                    </Button>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
@@ -145,7 +190,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             <div className="text-center border rounded-lg p-3 bg-red-50/50 border-red-100">
                                 <div className="flex justify-center mb-1"><UserX className="h-4 w-4 text-red-600" /></div>
                                 <div className="text-xl font-bold text-red-700">{stats.disabled}</div>
-                                <div className="text-[10px] text-red-600 uppercase">Deshabilitados</div>
+                                <div className="text-[10px] text-red-600 uppercase">No Habilitados</div>
                             </div>
                             <div className="text-center border rounded-lg p-3 bg-primary/5 border-primary/20">
                                 <div className="flex justify-center mb-1"><VoteIcon className="h-4 w-4 text-primary" /></div>
@@ -182,8 +227,8 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                         content={<ChartTooltipContent 
                                             formatter={(value, name, item) => (
                                                 <div className="flex flex-col">
-                                                    <span className="font-bold">{item.payload.name}</span>
-                                                    <span>{value} Votos ({item.payload.percentage.toFixed(1)}%)</span>
+                                                    <span className="font-bold">{(item as any).payload.name}</span>
+                                                    <span>{value} Votos ({ (item as any).payload.percentage.toFixed(1)}%)</span>
                                                 </div>
                                             )}
                                             hideIndicator

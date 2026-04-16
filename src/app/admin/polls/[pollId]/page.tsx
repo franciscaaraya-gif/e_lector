@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -9,11 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck } from 'lucide-react';
+import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck, UserX } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import PollDetailsLoading from './loading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -75,6 +74,13 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
         }
     }, [group, votersStatus]);
 
+    const stats = useMemo(() => {
+        const total = mergedVoters.length;
+        const enabled = mergedVoters.filter(v => v.enabled).length;
+        const disabled = total - enabled;
+        return { total, enabled, disabled };
+    }, [mergedVoters]);
+
     const copyLink = (voterId: string) => {
         const link = `${window.location.origin}/vote/${poll.id}?voterId=${voterId}`;
         navigator.clipboard.writeText(link);
@@ -113,12 +119,27 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users />Registro de Votantes</CardTitle>
-          <CardDescription>
-            {poll.status === 'pending' 
-                ? 'Habilita o deshabilita votantes antes de activar la votación.' 
-                : `Votantes oficiales para "${group.name}". El acceso individual está bloqueado.`}
-          </CardDescription>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle className="flex items-center gap-2"><Users />Registro de Votantes</CardTitle>
+                <CardDescription>
+                    {poll.status === 'pending' 
+                        ? 'Habilita o deshabilita votantes antes de activar la votación.' 
+                        : `Votantes oficiales para "${group.name}". El acceso individual está bloqueado.`}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                  <Badge variant="outline" className="flex items-center gap-1">
+                      <Users className="h-3 w-3" /> Total: {stats.total}
+                  </Badge>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 border-green-200 flex items-center gap-1">
+                      <UserCheck className="h-3 w-3" /> Habilitados: {stats.enabled}
+                  </Badge>
+                  <Badge variant="destructive" className="bg-red-100 text-red-800 border-red-200 flex items-center gap-1">
+                      <UserX className="h-3 w-3" /> No Habilitados: {stats.disabled}
+                  </Badge>
+              </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="hidden md:block">
