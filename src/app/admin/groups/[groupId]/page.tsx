@@ -58,12 +58,12 @@ export default function GroupDetailsPage() {
 
   const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
 
-  // Search logic
+  // Search logic for UI preview
   const foundVoterInList = useMemo(() => {
     if (!searchId.trim() || !personnel) return null;
     const search = searchId.trim().toLowerCase();
     return personnel.find(p => 
-      String(p.regGeneral).toLowerCase() === search || 
+      (p.regGeneral && String(p.regGeneral).toLowerCase() === search) || 
       p.id.toLowerCase() === search
     );
   }, [searchId, personnel]);
@@ -73,6 +73,7 @@ export default function GroupDetailsPage() {
 
     if (group.voters.some(v => v.id === voter.id)) {
       toast({ variant: 'destructive', title: 'Ya existe', description: 'Esta persona ya está en el grupo.' });
+      setSearchId('');
       return;
     }
 
@@ -91,6 +92,34 @@ export default function GroupDetailsPage() {
       }));
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      const value = e.currentTarget.value.trim().toLowerCase();
+      if (!value || !personnel) return;
+
+      const found = personnel.find(p => 
+        (p.regGeneral && String(p.regGeneral).toLowerCase() === value) || 
+        p.id.toLowerCase() === value
+      );
+
+      if (found) {
+        addVoterToGroup({
+          id: found.regGeneral || found.id,
+          nombre: found.nombres,
+          apellido: found.apellidos,
+          enabled: true
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'No encontrado',
+          description: `No se encontró personal con el ID: ${value}`
+        });
+        setSearchId('');
+      }
     }
   };
 
@@ -174,30 +203,22 @@ export default function GroupDetailsPage() {
                 <Fingerprint className="h-5 w-5 text-primary" />
                 Escanear RFID / ID
               </CardTitle>
-              <CardDescription>Busca personas en el listado oficial.</CardDescription>
+              <CardDescription>Pasa la tarjeta por el lector o escribe el ID y presiona Enter.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="ID o Nro de Registro..." 
-                  className="pl-9"
+                  placeholder="Escaneando..." 
+                  className="pl-9 bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && foundVoterInList) {
-                      addVoterToGroup({
-                        id: foundVoterInList.regGeneral || foundVoterInList.id,
-                        nombre: foundVoterInList.nombres,
-                        apellido: foundVoterInList.apellidos,
-                        enabled: true
-                      });
-                    }
-                  }}
+                  onKeyDown={handleKeyDown}
+                  autoFocus
                 />
               </div>
-              {foundVoterInList ? (
-                <div className="space-y-3">
+              {foundVoterInList && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
                   <Alert className="bg-primary/5 border-primary/20">
                     <AlertDescription className="text-sm">
                       <p className="font-bold">{foundVoterInList.nombres} {foundVoterInList.apellidos}</p>
@@ -205,6 +226,7 @@ export default function GroupDetailsPage() {
                     </AlertDescription>
                   </Alert>
                   <Button 
+                    variant="secondary"
                     className="w-full" 
                     onClick={() => addVoterToGroup({
                       id: foundVoterInList.regGeneral || foundVoterInList.id,
@@ -214,14 +236,10 @@ export default function GroupDetailsPage() {
                     })}
                     disabled={isUpdating}
                   >
-                    Agregar al Grupo
+                    Agregar Manualmente
                   </Button>
                 </div>
-              ) : searchId.trim() !== '' ? (
-                <p className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" /> No se encontró en el listado oficial.
-                </p>
-              ) : null}
+              )}
             </CardContent>
           </Card>
 
