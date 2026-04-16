@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { PlusCircle, Trash2, Eye } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -12,7 +12,6 @@ import { VoterGroup } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreateGroupDialog } from '@/components/admin/CreateGroupDialog';
 import {
@@ -30,7 +29,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
-function GroupCard({ group }: { group: VoterGroup }) {
+function GroupCard({ group, onGroupDeleteClick }: { group: VoterGroup, onGroupDeleteClick: (group: VoterGroup) => void }) {
   return (
     <Card>
       <CardHeader>
@@ -42,9 +41,20 @@ function GroupCard({ group }: { group: VoterGroup }) {
           Creado: {group.createdAt ? format(group.createdAt.toDate(), "d MMM yyyy", { locale: es }) : 'N/A'}
         </p>
       </CardContent>
-      <CardFooter>
-        <Button asChild className="w-full">
-          <Link href={`/admin/groups/${group.id}`}>Ver Detalles</Link>
+      <CardFooter className="flex gap-2">
+        <Button asChild className="flex-1">
+          <Link href={`/admin/groups/${group.id}`}>
+            <Eye className="mr-2 h-4 w-4" />
+            Ver Detalles
+          </Link>
+        </Button>
+        <Button 
+          variant="outline" 
+          size="icon"
+          className="text-destructive hover:bg-destructive/10" 
+          onClick={() => onGroupDeleteClick(group)}
+        >
+          <Trash2 className="h-4 w-4" />
         </Button>
       </CardFooter>
     </Card>
@@ -97,7 +107,7 @@ function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGr
   return (
     <>
       <div className="md:hidden space-y-4">
-        {groups.map((group) => <GroupCard key={group.id} group={group} />)}
+        {groups.map((group) => <GroupCard key={group.id} group={group} onGroupDeleteClick={onGroupDeleteClick} />)}
       </div>
       <div className="hidden md:block">
         <Table>
@@ -116,25 +126,21 @@ function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGr
                 <TableCell>{(group.voters || []).length} Votantes</TableCell>
                 <TableCell>{group.createdAt ? format(group.createdAt.toDate(), "d MMM, yyyy", { locale: es }) : 'N/A'}</TableCell>
                 <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
-                        <span className="sr-only">Abrir menu</span>
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild>
-                        <Link href={`/admin/groups/${group.id}`}>Ver detalles</Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => onGroupDeleteClick(group)}
-                      >
-                        Eliminar
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="flex justify-end gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/admin/groups/${group.id}`}>
+                        Detalles
+                      </Link>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      onClick={() => onGroupDeleteClick(group)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -200,7 +206,7 @@ export default function GroupsPage() {
     <div className="space-y-6">
         <CardHeader className="p-0">
             <CardTitle className="text-3xl font-bold tracking-tight font-headline">Grupos de Votantes</CardTitle>
-            <CardDescription>Crea y administra listas de votantes reutilizables para tus encuestas.</CardDescription>
+            <CardDescription>Crea y administra listas de votantes reutilizables para tus votaciones.</CardDescription>
         </CardHeader>
         <Card>
             <CardHeader>
