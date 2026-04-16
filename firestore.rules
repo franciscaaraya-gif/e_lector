@@ -23,56 +23,29 @@ service cloud.firestore {
       return isOwner(userId) && resource != null;
     }
     
-    function hasValidVoterDataOnCreate(pollId, adminId) {
-        return request.resource.data.pollId == pollId && request.resource.data.adminId == adminId;
-    }
-
-    // --- Create Request Validation ---
-
-    function hasValidAdminDataOnCreate(adminId) {
-      return request.resource.data.id == adminId;
-    }
-
-    function hasValidPollDataOnCreate(adminId) {
-      return request.resource.data.adminId == adminId;
-    }
-
-    function hasValidGroupDataOnCreate(adminId) {
-      return request.resource.data.adminId == adminId;
-    }
-
-    // --- Update Request Validation ---
-
-    function isAdminDataImmutable() {
-      return request.resource.data.id == resource.data.id;
-    }
-
-    function isPollDataImmutable() {
-      return request.resource.data.adminId == resource.data.adminId;
-    }
-
-    function isGroupDataImmutable() {
-      return request.resource.data.adminId == resource.data.adminId;
-    }
-
-    function isVoterDataImmutable() {
-      return request.resource.data.pollId == resource.data.pollId && request.resource.data.adminId == resource.data.adminId;
-    }
-
     // ------------------------------------------------------------------------
     // Collection Group Rules (CRITICAL for Inbox functionality)
     // ------------------------------------------------------------------------
 
-    // This rule MUST be at the top level with {path=**} for collectionGroup queries to work
-    match /{path=**}/voters/{voterDocId} {
+    // Rule for the 'voters' collection group. 
+    // This allows the real-time inbox to query pending polls across all admins.
+    match /{path=**}/voters/{vDocId} {
+        // Any signed-in user (including anonymous) can read their voter status.
+        // We rely on the query filters (voterId, adminId) to keep data private.
         allow read: if isSignedIn();
+        
+        // Only the admin owner can manage the voter registry.
         allow create: if isSignedIn() && isOwner(request.resource.data.adminId);
-        allow update: if isSignedIn() && (isOwner(resource.data.adminId) || (resource.data.voterId == request.auth.uid || isVoterDataImmutable()));
+        allow update: if isSignedIn() && (
+            isOwner(resource.data.adminId) || 
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted']))
+        );
         allow delete: if isSignedIn() && isOwner(resource.data.adminId);
     }
     
     match /{path=**}/votes/{voteId} {
         allow get, list, update, delete: if false;
+        // Allow anyone signed-in to create a vote (it must be associated with an admin and poll).
         allow create: if isSignedIn() && request.resource.data.pollId != null && request.resource.data.adminId != null;
     }
 
@@ -81,36 +54,27 @@ service cloud.firestore {
     // ------------------------------------------------------------------------
 
     match /admins/{adminId} {
-      allow get: if isOwner(adminId) || isSignedIn(); // Allow get for voters checking their admin's polls
+      allow get: if isSignedIn(); // Allow get for voters checking their admin's profile or polls
       allow list: if false;
-      allow create: if isOwner(adminId) && hasValidAdminDataOnCreate(adminId);
-      allow update: if isExistingOwner(adminId) && isAdminDataImmutable();
+      allow create: if isOwner(adminId) && request.resource.data.id == adminId;
+      allow update: if isExistingOwner(adminId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(adminId);
 
         match /polls/{pollId} {
           allow get: if isSignedIn(); 
           allow list: if isOwner(adminId);
-          allow create: if isOwner(adminId) && hasValidPollDataOnCreate(adminId);
-          allow update: if isExistingOwner(adminId) && isPollDataImmutable();
+          allow create: if isOwner(adminId) && request.resource.data.adminId == adminId;
+          allow update: if isExistingOwner(adminId) && request.resource.data.adminId == resource.data.adminId;
           allow delete: if isExistingOwner(adminId);
 
           match /votes/{voteId} {
             allow get, list, delete: if isOwner(adminId);
-            allow create, update: if false;
-          }
-          
-          // Subcollection voters (also handled by group rule, but good for direct access)
-          match /voters/{vDocId} {
-              allow read: if isSignedIn();
+            allow create, update: if false; // Votes are created via collectionGroup/root rule
           }
         }
 
         match /groups/{groupId} {
-            allow get: if isOwner(adminId);
-            allow list: if isOwner(adminId);
-            allow create: if isOwner(adminId) && hasValidGroupDataOnCreate(adminId);
-            allow update: if isExistingOwner(adminId) && isGroupDataImmutable();
-            allow delete: if isExistingOwner(adminId);
+            allow get, list, create, update, delete: if isOwner(adminId);
         }
 
         match /lista_completa/{itemId} {
@@ -127,21 +91,20 @@ service cloud.firestore {
     }
     
     match /authorizedAdmins/{authId} {
-        allow get: if false;
         allow list: if isSignedIn();
-        allow create, update, delete: if false;
+        allow get, create, update, delete: if false;
     }
     
     match /poll-lookup/{pollId} {
-        allow get, list: if true;
+        allow get: if true;
+        allow list: if isSignedIn();
         allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
-        allow update: if false;
         allow delete: if isSignedIn() && (resource == null || isOwner(resource.data.adminId));
+        allow update: if false;
     }
 
     match /salas/{salaId} {
-      allow get: if true;
-      allow list: if true;
+      allow get, list: if true;
       allow create, update, delete: if false;
     }
   }
