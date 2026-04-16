@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -28,7 +29,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListaCompletaItem, VoterInfo } from '@/lib/types';
 import { Separator } from '../ui/separator';
-import { CardContent } from '../ui/card';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: 'El nombre debe tener al menos 3 caracteres.' }).max(50, { message: 'El nombre no puede tener más de 50 caracteres.' }),
@@ -209,9 +209,9 @@ export function CreateGroupDialog() {
 
           <div className="space-y-4">
             <div className="flex flex-col gap-2">
-              <FormLabel className="flex items-center gap-2">
+              <Label className="flex items-center gap-2">
                 <Fingerprint className="h-4 w-4" /> Registrar por ID o RFID
-              </FormLabel>
+              </Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -263,11 +263,11 @@ export function CreateGroupDialog() {
                 <div className="border rounded-md p-4 space-y-3 bg-muted/30">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <FormLabel className="text-xs">Nombres</FormLabel>
+                      <Label className="text-xs">Nombres</Label>
                       <Input value={manualNames} onChange={(e) => setManualNames(e.target.value)} placeholder="Ej: Juan Pedro" />
                     </div>
                     <div className="space-y-1">
-                      <FormLabel className="text-xs">Apellidos</FormLabel>
+                      <Label className="text-xs">Apellidos</Label>
                       <Input value={manualLastNames} onChange={(e) => setManualLastNames(e.target.value)} placeholder="Ej: Soto Pérez" />
                     </div>
                   </div>

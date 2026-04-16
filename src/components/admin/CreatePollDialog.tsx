@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -296,8 +297,8 @@ export function CreatePollDialog() {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4">
-            <FormItem>
-              <FormLabel>Plantilla de Votación (Opcional)</FormLabel>
+            <div className="space-y-2">
+              <Label>Plantilla de Votación (Opcional)</Label>
               <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
                 <FormControl>
                   <SelectTrigger>
@@ -311,10 +312,10 @@ export function CreatePollDialog() {
                   ))}
                 </SelectContent>
               </Select>
-              <FormDescription>
+              <p className="text-[0.8rem] text-muted-foreground">
                 Seleccionar una plantilla llenará automáticamente el tipo de votación y otras opciones.
-              </FormDescription>
-            </FormItem>
+              </p>
+            </div>
             
             <FormField
               control={form.control}
@@ -331,7 +332,7 @@ export function CreatePollDialog() {
             />
 
             <div className='space-y-2'>
-              <FormLabel>Opciones de Respuesta</FormLabel>
+              <Label>Opciones de Respuesta</Label>
               {isCargoElection && (
                 <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
                     <AlertDescription>
