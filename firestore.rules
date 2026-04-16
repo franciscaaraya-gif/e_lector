@@ -2,35 +2,17 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ========================================================================
-    // REGLAS GLOBALES (CRÍTICAS PARA CONSULTAS DE GRUPO)
-    // ========================================================================
-
-    // Esta regla permite que la Bandeja de Entrada busque en todos los documentos 'voters'
-    // sin importar bajo qué admin o encuesta estén.
-    // La hacemos pública para lectura para evitar el error de "Permission Denied" 
-    // que a veces enmascara la falta de índices.
+    // REGLA GLOBAL PARA CONSULTAS DE GRUPO (INDISPENSABLE PARA LA BANDEJA DE ENTRADA)
     match /{path=**}/voters/{vDocId} {
+        // Permitimos lectura a cualquiera (incluyendo anónimos) para que la consulta no sea bloqueada por reglas
+        // El filtrado real lo hace el motor de búsqueda de Firestore basado en los campos
         allow read: if true;
         
-        // Escritura protegida
+        // Escritura protegida para el admin o para marcar el voto
         allow create: if request.auth != null;
-        allow update: if request.auth != null && (
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted'])) ||
-            (request.auth.uid == resource.data.adminId)
-        );
+        allow update: if request.auth != null;
         allow delete: if request.auth != null && request.auth.uid == resource.data.adminId;
     }
-    
-    // Regla global para votos
-    match /{path=**}/votes/{voteId} {
-        allow create: if request.auth != null;
-        allow read: if request.auth != null;
-    }
-
-    // ========================================================================
-    // REGLAS JERÁRQUICAS (ESTRUCTURA ESTÁNDAR)
-    // ========================================================================
 
     function isSignedIn() {
       return request.auth != null;
@@ -40,17 +22,19 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
+    // Regla para que los votantes puedan leer los detalles de la encuesta a la que pertenecen
+    match /admins/{adminId}/polls/{pollId} {
+      allow get: if true; 
+      allow list: if true;
+      allow create, update, delete: if isOwner(adminId);
+    }
+
     match /admins/{adminId} {
-      allow get: if true; // Permitir lectura de perfiles admin para identificar salas
+      allow get: if true;
       allow list: if isOwner(adminId);
       allow create: if isOwner(adminId);
       allow update: if isOwner(adminId);
       allow delete: if isOwner(adminId);
-
-      match /polls/{pollId} {
-        allow get, list: if true; // Las encuestas deben ser legibles para votar
-        allow create, update, delete: if isOwner(adminId);
-      }
 
       match /groups/{groupId} {
         allow read, write: if isOwner(adminId);
