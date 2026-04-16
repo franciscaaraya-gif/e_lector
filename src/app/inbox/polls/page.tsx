@@ -1,3 +1,4 @@
+
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,7 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, ArrowLeft, Info, HelpCircle } from 'lucide-react';
+import { AlertCircle, Info, HelpCircle } from 'lucide-react';
 import InboxLoading from './loading';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -74,11 +75,13 @@ function PollsInboxClient() {
 
     const votersQuery = useMemoFirebase(() => {
         if (!firestore || !voterId || !salaId || !user) return null;
+        // Agregamos el filtro enabled == true para que no vea la encuesta si está deshabilitado
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
             where('voterId', '==', voterId),
-            where('hasVoted', '==', false)
+            where('hasVoted', '==', false),
+            where('enabled', '==', true)
         );
     }, [firestore, voterId, salaId, user]);
 
@@ -113,7 +116,7 @@ function PollsInboxClient() {
                              <Info className="h-8 w-8 text-primary" />
                         </div>
                         <CardTitle className="mb-2">Sin votaciones pendientes</CardTitle>
-                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Aparecerán aquí automáticamente cuando el administrador inicie una.</p>
+                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Aparecerán aquí automáticamente cuando el administrador inicie una y estés habilitado.</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -145,7 +148,7 @@ function PollsInboxClient() {
                             <AlertCircle className="h-4 w-4" />
                             <AlertTitle>Error de Configuración Detectado</AlertTitle>
                             <AlertDescription className="text-xs space-y-2">
-                                <p>La bandeja de entrada no puede consultar los datos. Esto suele deberse a que falta un <b>Índice Compuesto</b> en Firebase.</p>
+                                <p>La bandeja de entrada no puede consultar los datos. Esto suele deberse a que falta un <b>Índice Compuesto</b> en Firebase para la colección <i>voters</i>.</p>
                                 <p><b>Cómo solucionarlo:</b> Abre la consola del navegador (F12), busca un error rojo de Firebase y haz clic en el enlace azul que aparece allí para crear el índice automáticamente.</p>
                             </AlertDescription>
                         </Alert>

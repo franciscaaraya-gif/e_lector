@@ -1,3 +1,4 @@
+
 import { Timestamp } from "firebase/firestore";
 
 export type PollStatus = 'pending' | 'active' | 'closed';
@@ -17,6 +18,8 @@ export type Poll = {
   maxSelections?: number;
   groupId?: string;
   createdAt: Timestamp;
+  activatedAt?: Timestamp;
+  closedAt?: Timestamp;
   adminId: string;
 };
 

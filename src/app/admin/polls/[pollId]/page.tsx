@@ -3,7 +3,7 @@
 
 import { useParams } from 'next/navigation';
 import { useUser, useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection, updateDoc, writeBatch, getDocs } from 'firebase/firestore';
+import { doc, collection, updateDoc, writeBatch, getDocs, serverTimestamp } from 'firebase/firestore';
 import { Poll, VoterGroup, VoterInfo, VoterStatus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -298,7 +298,10 @@ export default function PollDetailsPage() {
       setIsActivating(true);
       try {
           const pollRef = doc(firestore, 'admins', user.uid, 'polls', poll.id);
-          await updateDoc(pollRef, { status: 'active' });
+          await updateDoc(pollRef, { 
+              status: 'active',
+              activatedAt: serverTimestamp() // Registramos hora de inicio
+          });
           toast({ title: "Votación Activada", description: "La votación ya es pública para los votantes habilitados." });
       } catch (error) {
           toast({ variant: 'destructive', title: "Error al activar", description: "No se pudo activar la votación." });
@@ -311,7 +314,10 @@ export default function PollDetailsPage() {
     if (!poll || !firestore || !user) return;
     const pollRef = doc(firestore, 'admins', user.uid, 'polls', poll.id);
     try {
-        await updateDoc(pollRef, { status: 'closed' });
+        await updateDoc(pollRef, { 
+            status: 'closed',
+            closedAt: serverTimestamp() // Registramos hora de término
+        });
         toast({ title: "Votación Cerrada" });
     } catch (error) {
         toast({ variant: 'destructive', title: "Error" });
@@ -382,7 +388,7 @@ export default function PollDetailsPage() {
                             <LinkIcon className="mr-2 h-4 w-4" /> Copiar Enlace
                         </Button>
                         <Button onClick={() => setShowResults(true)} variant="secondary">
-                            Resultados
+                            Resultados e Informe
                         </Button>
                     </div>
                 </div>

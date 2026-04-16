@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Poll": {
@@ -52,6 +53,16 @@
             "type": "string",
             "format": "date-time",
             "description": "Marca de tiempo de cuándo se creó la votación."
+        },
+        "activatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Marca de tiempo de cuándo se activó la votación."
+        },
+        "closedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Marca de tiempo de cuándo se cerró la votación."
         }
       },
       "required": [
@@ -72,6 +83,7 @@
         "pollId": { "type": "string" },
         "voterId": { "type": "string" },
         "hasVoted": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
         "adminId": { "type": "string" }
       },
       "required": ["id", "pollId", "voterId", "hasVoted", "adminId"]
@@ -82,9 +94,10 @@
       "properties": {
         "id": { "type": "string" },
         "pollId": { "type": "string" },
-        "selectedOptions": { "type": "array", "items": { "type": "string" } }
+        "selectedOptions": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "pollId", "selectedOptions"]
+      "required": ["id", "pollId", "selectedOptions", "createdAt"]
     },
     "Admin": {
       "title": "Admin",
