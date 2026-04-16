@@ -1,14 +1,13 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { collectionGroup, query, where, getDocs, doc, getDoc, and } from 'firebase/firestore';
+import { collectionGroup, query, where } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import Link from 'next/link';
 
-import { useAuth, useFirestore, useUser } from '@/firebase';
+import { useAuth, useFirestore, useUser, useCollection, useMemoFirebase, useDoc } from '@/firebase';
 import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
@@ -17,6 +16,42 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import InboxLoading from './loading';
 
+/**
+ * Individual Poll item that listens for poll document changes in real-time.
+ */
+function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, voterId: string }) {
+    const firestore = useFirestore();
+    const pollRef = useMemoFirebase(() => {
+        if (!firestore) return null;
+        return doc(firestore, 'admins', voterStatus.adminId, 'polls', voterStatus.pollId);
+    }, [firestore, voterStatus.adminId, voterStatus.pollId]);
+
+    const { data: poll, isLoading } = useDoc<Poll>(pollRef);
+
+    if (isLoading) return <Card className="animate-pulse h-32" />;
+    if (!poll || poll.status !== 'active') return null;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="truncate">{poll.question}</CardTitle>
+                <CardDescription>
+                    {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (hasta ${poll.maxSelections} opciones)`}
+                </CardDescription>
+            </CardHeader>
+            <CardFooter>
+                <Button asChild className="w-full">
+                    <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
+                        Ir a Votar
+                    </Link>
+                </Button>
+            </CardFooter>
+        </Card>
+    );
+}
+
+// Fixed import for doc
+import { doc } from 'firebase/firestore';
 
 function PollsInboxClient() {
     const searchParams = useSearchParams();
@@ -24,10 +59,7 @@ function PollsInboxClient() {
     const voterId = searchParams.get('voterId');
     const salaId = searchParams.get('salaId');
 
-    const [polls, setPolls] = useState<Poll[]>([]);
-    const [error, setError] = useState<string>('');
-    const [isLoading, setIsLoading] = useState(true);
-
+    const [authError, setAuthError] = useState<string>('');
     const firestore = useFirestore();
     const auth = useAuth();
     const { user, isUserLoading: isAuthLoading } = useUser();
@@ -37,68 +69,33 @@ function PollsInboxClient() {
         if (!auth || isAuthLoading || user) return;
 
         signInAnonymously(auth).catch(err => {
-            setError("Se requiere autenticación para ver tus votaciones.");
+            setAuthError("Se requiere autenticación para ver tus votaciones.");
         });
     }, [auth, user, isAuthLoading]);
+
+    // Real-time query for voter documents
+    const votersQuery = useMemoFirebase(() => {
+        if (!firestore || !voterId || !salaId || !user) return null;
+        return query(
+            collectionGroup(firestore, 'voters'),
+            where('adminId', '==', salaId),
+            where('voterId', '==', voterId),
+            where('hasVoted', '==', false)
+        );
+    }, [firestore, voterId, salaId, user]);
+
+    const { data: voterDocs, isLoading: isDocsLoading, error: docsError } = useCollection<VoterStatus>(votersQuery);
 
     useEffect(() => {
         if (!voterId || !salaId) {
             router.replace('/inbox');
-            return;
         }
+    }, [voterId, salaId, router]);
 
-        if (!firestore || !user || isAuthLoading) {
-            return;
-        }
+    const isLoading = isDocsLoading || isAuthLoading;
+    const error = authError || (docsError ? 'Permiso denegado o error de configuración. Verifica los datos o el índice de Firestore.' : '');
 
-        const fetchEligiblePolls = async () => {
-            setIsLoading(true);
-            setError('');
-            try {
-                const votersCollectionGroup = collectionGroup(firestore, 'voters');
-                // Query for voter documents matching both adminId (salaId) and voterId
-                const q = query(votersCollectionGroup, and(
-                    where('adminId', '==', salaId),
-                    where('voterId', '==', voterId)
-                ));
-                const querySnapshot = await getDocs(q);
-
-                const eligiblePollPromises = querySnapshot.docs
-                    .filter(voterDoc => !(voterDoc.data() as VoterStatus).hasVoted)
-                    .map(async (voterDoc) => {
-                        const voterData = voterDoc.data() as VoterStatus;
-                        // The pollId is in the voter document itself.
-                        const pollRef = doc(firestore, 'admins', voterData.adminId, 'polls', voterData.pollId);
-                        const pollSnap = await getDoc(pollRef);
-
-                        if (pollSnap.exists() && pollSnap.data().status === 'active') {
-                            return { ...pollSnap.data(), id: pollSnap.id } as Poll;
-                        }
-                        return null;
-                    });
-                
-                const results = (await Promise.all(eligiblePollPromises)).filter((p): p is Poll => p !== null);
-                setPolls(results);
-
-            } catch (err: any) {
-                console.error(err);
-                if (err.code === 'failed-precondition' && err.message.includes('index')) {
-                    setError('La base de datos requiere una configuración de índice para esta consulta. Contacta al administrador. Si eres el administrador, el error en la consola del navegador contendrá un enlace para crear el índice requerido.');
-                } else if(err.code === 'permission-denied') {
-                     setError('Permiso denegado. Verifica que el ID de la sala y tu ID de votante sean correctos.');
-                } else {
-                    setError('No se pudieron cargar las votaciones. Inténtalo de nuevo más tarde.');
-                }
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchEligiblePolls();
-    }, [firestore, user, isAuthLoading, voterId, salaId, router]);
-
-
-    if (isLoading || isAuthLoading) {
+    if (isLoading) {
         return <InboxLoading />;
     }
 
@@ -131,37 +128,33 @@ function PollsInboxClient() {
         <div className="w-full space-y-4">
              <div className="text-center">
                 <h1 className="text-2xl font-bold font-headline">Tus Votaciones Activas</h1>
-                <p className="text-muted-foreground">Sala: <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{salaId}</span></p>
-                <p className="text-muted-foreground">ID de Votante: <span className="font-mono text-sm bg-muted px-2 py-1 rounded">{voterId}</span></p>
+                <p className="text-muted-foreground text-sm">
+                    Sala: <span className="font-mono bg-muted px-2 py-0.5 rounded">{salaId}</span>
+                </p>
+                <p className="text-muted-foreground text-sm">
+                    ID de Votante: <span className="font-mono bg-muted px-2 py-0.5 rounded">{voterId}</span>
+                </p>
              </div>
 
-            {polls.length === 0 ? (
+            {!voterDocs || voterDocs.length === 0 ? (
                 <Card className="text-center p-8">
                     <CardHeader>
                         <CardTitle>¡Todo listo por ahora!</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <p className="text-muted-foreground">No tienes votaciones pendientes en este momento.</p>
+                        <p className="text-muted-foreground">No tienes votaciones pendientes en este momento. Estas aparecerán automáticamente cuando sean activadas.</p>
                     </CardContent>
                 </Card>
             ) : (
-                polls.map(poll => (
-                    <Card key={poll.id}>
-                        <CardHeader>
-                            <CardTitle className="truncate">{poll.question}</CardTitle>
-                            <CardDescription>
-                                {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (hasta ${poll.maxSelections} opciones)`}
-                            </CardDescription>
-                        </CardHeader>
-                        <CardFooter>
-                            <Button asChild className="w-full">
-                                <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
-                                    Ir a Votar
-                                </Link>
-                            </Button>
-                        </CardFooter>
-                    </Card>
-                ))
+                <div className="space-y-4">
+                    {voterDocs.map(voterDoc => (
+                        <PollInboxItem 
+                            key={voterDoc.id} 
+                            voterStatus={voterDoc} 
+                            voterId={voterId!} 
+                        />
+                    ))}
+                </div>
             )}
         </div>
     );

@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore'
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, Users } from 'lucide-react';
+import { MoreHorizontal, Eye, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -171,23 +171,22 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                                 <TableCell><Badge variant={statusVariant[poll.status] || 'secondary'}>{statusText[poll.status] || poll.status}</Badge></TableCell>
                                 <TableCell>{poll.createdAt ? format(poll.createdAt.toDate(), "d MMM, yyyy", { locale: es }) : 'N/A'}</TableCell>
                                 <TableCell className="text-right">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" className="h-8 w-8 p-0">
-                                        <span className="sr-only">Abrir menu</span>
-                                        <MoreHorizontal className="h-4 w-4" />
-                                    </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                    <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        className="text-destructive"
-                                        onClick={() => onPollDeleteClick(poll)}
-                                    >
-                                        Eliminar
-                                    </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                  <div className="flex justify-end gap-2">
+                                      <Button asChild variant="outline" size="sm">
+                                          <Link href={`/admin/polls/${poll.id}`}>
+                                              <Eye className="mr-2 h-4 w-4" />
+                                              Detalles
+                                          </Link>
+                                      </Button>
+                                      <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-destructive hover:bg-destructive/10"
+                                          onClick={() => onPollDeleteClick(poll)}
+                                      >
+                                          <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                  </div>
                                 </TableCell>
                             </TableRow>
                             ))}
