@@ -12,13 +12,9 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft, Info, ExternalLink } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Info, Loader2 } from 'lucide-react';
 import InboxLoading from './loading';
 
-/**
- * Individual Poll item that listens for poll document changes in real-time.
- */
 function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, voterId: string }) {
     const firestore = useFirestore();
     const pollRef = useMemoFirebase(() => {
@@ -37,7 +33,7 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
             <CardHeader>
                 <CardTitle className="truncate text-lg">{poll.question}</CardTitle>
                 <CardDescription>
-                    {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (hasta ${poll.maxSelections} opciones)`}
+                    {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (máx. ${poll.maxSelections})`}
                 </CardDescription>
             </CardHeader>
             <CardFooter>
@@ -58,6 +54,7 @@ function PollsInboxClient() {
     const salaId = searchParams.get('salaId');
 
     const [authError, setAuthError] = useState<string>('');
+    const [isAuthenticating, setIsAuthenticating] = useState(false);
     const firestore = useFirestore();
     const auth = useAuth();
     const { user, isUserLoading: isAuthLoading } = useUser();
@@ -65,14 +62,18 @@ function PollsInboxClient() {
     useEffect(() => {
         if (!auth || isAuthLoading || user) return;
 
-        signInAnonymously(auth).catch(err => {
-            console.error("Auth error:", err);
-            setAuthError("Se requiere autenticación para ver tus votaciones.");
-        });
+        setIsAuthenticating(true);
+        signInAnonymously(auth)
+            .catch(err => {
+                console.error("Auth error:", err);
+                setAuthError("No se pudo iniciar sesión de forma segura.");
+            })
+            .finally(() => setIsAuthenticating(false));
     }, [auth, user, isAuthLoading]);
 
     const votersQuery = useMemoFirebase(() => {
         if (!firestore || !voterId || !salaId || !user) return null;
+        // Consulta de grupo para encontrar las encuestas del votante
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
@@ -89,7 +90,7 @@ function PollsInboxClient() {
         }
     }, [voterId, salaId, router]);
 
-    const isLoading = isDocsLoading || isAuthLoading;
+    const isLoading = isDocsLoading || isAuthLoading || isAuthenticating;
 
     if (isLoading) {
         return <InboxLoading />;
@@ -101,22 +102,20 @@ function PollsInboxClient() {
                 <CardHeader>
                     <CardTitle className="text-destructive flex items-center gap-2">
                         <AlertCircle className="h-6 w-6" />
-                        Atención Requerida
+                        Acceso Restringido o Error Técnico
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <p className="text-sm font-medium">No se pueden cargar las votaciones debido a que falta un índice en la base de datos.</p>
+                    <p className="text-sm font-medium">No se han podido cargar tus votaciones.</p>
                     
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
                         <h4 className="font-bold text-blue-900 flex items-center gap-2">
-                            <Info className="h-4 w-4" /> Pasos para solucionar:
+                            <Info className="h-4 w-4" /> Posibles causas:
                         </h4>
                         <ol className="text-sm text-blue-800 list-decimal list-inside space-y-2">
-                            <li>Presiona la tecla <b>F12</b> de tu teclado.</li>
-                            <li>Haz clic en la pestaña que dice <b>"Console"</b> (o Consola).</li>
-                            <li>Busca un mensaje en rojo y haz clic en el <b>enlace azul</b> que empieza con <code className="text-[10px] bg-blue-100 px-1">https://console.firebase...</code></li>
-                            <li>Se abrirá una ventana de Firebase: haz clic en el botón <b>"Crear índice"</b>.</li>
-                            <li>Espera 2-3 minutos y vuelve a esta página.</li>
+                            <li><b>Falta de Índice:</b> Si eres el administrador, presiona <b>F12</b>, ve a <b>Console</b> y busca el <b>enlace azul</b> de Firebase para crear el índice.</li>
+                            <li><b>ID Incorrecto:</b> Verifica que tu ID de votante sea el correcto.</li>
+                            <li><b>Sin Conexión:</b> Revisa tu conexión a internet.</li>
                         </ol>
                     </div>
                 </CardContent>
@@ -149,7 +148,7 @@ function PollsInboxClient() {
                              <Info className="h-8 w-8 text-primary" />
                         </div>
                         <CardTitle className="mb-2">Sin votaciones pendientes</CardTitle>
-                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Cuando se inicie una, aparecerá aquí automáticamente.</p>
+                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Aparecerán aquí automáticamente cuando el administrador inicie una.</p>
                     </CardContent>
                 </Card>
             ) : (

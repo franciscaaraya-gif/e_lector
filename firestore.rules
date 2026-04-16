@@ -1,15 +1,36 @@
-/**
- * Core Philosophy: This ruleset enforces a strict user-ownership model centered around
- * administrators ("admins"). All data, including polls, voter lists, and votes, is
- * hierarchically nested under the specific admin who created it.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ------------------------------------------------------------------------
-    // Helper Functions
-    // ------------------------------------------------------------------------
+    // ========================================================================
+    // REGLAS GLOBALES (CRÍTICAS PARA CONSULTAS DE GRUPO)
+    // ========================================================================
+
+    // Esta regla permite que la Bandeja de Entrada busque en todos los documentos 'voters'
+    // sin importar bajo qué admin o encuesta estén.
+    match /{path=**}/voters/{vDocId} {
+        // Cualquier usuario autenticado (incluyendo anónimos) puede leer su estado.
+        allow read: if request.auth != null;
+        
+        // Permisos de escritura para el admin y para el proceso de votación (hasVoted)
+        allow create: if request.auth != null;
+        allow update: if request.auth != null && (
+            // El admin puede cambiar todo, el votante solo 'hasVoted'
+            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted'])) ||
+            (request.auth.uid == resource.data.adminId)
+        );
+        allow delete: if request.auth != null && request.auth.uid == resource.data.adminId;
+    }
+    
+    // Regla global para votos (permite que cualquier usuario autenticado emita un voto)
+    match /{path=**}/votes/{voteId} {
+        allow create: if request.auth != null;
+        allow read: if request.auth != null; // El admin necesita leerlos para los resultados
+    }
+
+    // ========================================================================
+    // REGLAS JERÁRQUICAS (ESTRUCTURA ESTÁNDAR)
+    // ========================================================================
 
     function isSignedIn() {
       return request.auth != null;
@@ -19,92 +40,49 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isExistingOwner(userId) {
-      return isOwner(userId) && resource != null;
-    }
-    
-    // ------------------------------------------------------------------------
-    // Collection Group Rules (CRITICAL for Inbox functionality)
-    // ------------------------------------------------------------------------
-
-    // Rule for the 'voters' collection group. 
-    // This allows the real-time inbox to query pending polls across all admins.
-    match /{path=**}/voters/{vDocId} {
-        // Any signed-in user (including anonymous) can read their voter status.
-        allow read: if isSignedIn();
-        
-        // Only the admin owner can manage the voter registry.
-        allow create: if isSignedIn() && isOwner(request.resource.data.adminId);
-        allow update: if isSignedIn() && (
-            isOwner(resource.data.adminId) || 
-            (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted']))
-        );
-        allow delete: if isSignedIn() && isOwner(resource.data.adminId);
-    }
-    
-    match /{path=**}/votes/{voteId} {
-        allow get, list, update, delete: if false;
-        // Allow anyone signed-in to create a vote (it must be associated with an admin and poll).
-        allow create: if isSignedIn();
-    }
-
-    // ------------------------------------------------------------------------
-    // Standard Collection Rules
-    // ------------------------------------------------------------------------
-
     match /admins/{adminId} {
-      allow get: if isSignedIn(); // Allow get for voters checking their admin's profile or polls
-      allow list: if isSignedIn() && isOwner(adminId);
-      allow create: if isOwner(adminId) && request.resource.data.id == adminId;
-      allow update: if isExistingOwner(adminId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(adminId);
+      allow get: if isSignedIn();
+      allow list: if isOwner(adminId);
+      allow create: if isOwner(adminId);
+      allow update: if isOwner(adminId);
+      allow delete: if isOwner(adminId);
 
-        match /polls/{pollId} {
-          allow get: if isSignedIn(); 
-          allow list: if isOwner(adminId);
-          allow create: if isOwner(adminId) && request.resource.data.adminId == adminId;
-          allow update: if isExistingOwner(adminId) && request.resource.data.adminId == resource.data.adminId;
-          allow delete: if isExistingOwner(adminId);
+      match /polls/{pollId} {
+        allow get, list: if isSignedIn();
+        allow create, update, delete: if isOwner(adminId);
+      }
 
-          match /votes/{voteId} {
-            allow get, list, delete: if isOwner(adminId);
-            allow create, update: if false; 
-          }
-        }
+      match /groups/{groupId} {
+        allow read, write: if isOwner(adminId);
+      }
 
-        match /groups/{groupId} {
-            allow get, list, create, update, delete: if isOwner(adminId);
-        }
+      match /lista_completa/{itemId} {
+        allow read, write: if isOwner(adminId);
+      }
 
-        match /lista_completa/{itemId} {
-            allow read, write: if isOwner(adminId);
-        }
-
-        match /orden_lista/{ordenId} {
-            allow read, write: if isOwner(adminId);
-        }
-        
-        match /poll_templates/{templateId} {
-            allow read, write: if isOwner(adminId);
-        }
+      match /orden_lista/{ordenId} {
+        allow read, write: if isOwner(adminId);
+      }
+      
+      match /poll_templates/{templateId} {
+        allow read, write: if isOwner(adminId);
+      }
     }
     
+    // Reglas de utilidad para el sistema
     match /authorizedAdmins/{authId} {
-        allow list: if isSignedIn();
-        allow get, create, update, delete: if false;
+      allow list: if isSignedIn();
     }
     
     match /poll-lookup/{pollId} {
-        allow get: if true;
-        allow list: if isSignedIn();
-        allow create: if isSignedIn() && request.resource.data.adminId == request.auth.uid;
-        allow delete: if isSignedIn() && (resource == null || isOwner(resource.data.adminId));
-        allow update: if false;
+      allow get: if true;
+      allow list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow delete: if isSignedIn();
     }
 
     match /salas/{salaId} {
       allow get, list: if true;
-      allow create, update, delete: if false;
     }
   }
 }
