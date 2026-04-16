@@ -65,10 +65,10 @@ service cloud.firestore {
 
 
     // ------------------------------------------------------------------------
-    // Collection Rules
+    // Collection Group Rules (Must be top-level)
     // ------------------------------------------------------------------------
 
-    // Collection Group rules must be at the top level to match any path
+    // This rule allows the collectionGroup('voters') query used in the inbox
     match /{path=**}/voters/{voterDocId} {
         allow read: if isSignedIn();
         allow create: if isSignedIn() && isOwner(request.resource.data.adminId) && hasValidVoterDataOnCreate(request.resource.data.pollId, request.resource.data.adminId);
@@ -80,6 +80,10 @@ service cloud.firestore {
         allow get, list, update, delete: if false;
         allow create: if isSignedIn() && request.resource.data.pollId != null && request.resource.data.adminId != null;
     }
+
+    // ------------------------------------------------------------------------
+    // Standard Collection Rules
+    // ------------------------------------------------------------------------
 
     match /admins/{adminId} {
       allow get: if isOwner(adminId);
@@ -98,11 +102,6 @@ service cloud.firestore {
           match /votes/{voteId} {
             allow get, list, delete: if isOwner(adminId);
             allow create, update: if false;
-          }
-          
-          // Legacy nested path rule (optional if collectionGroup rule is present)
-          match /voters/{voterId} {
-            allow read, write: if isOwner(adminId) || (isSignedIn() && request.auth.uid != null);
           }
         }
 
