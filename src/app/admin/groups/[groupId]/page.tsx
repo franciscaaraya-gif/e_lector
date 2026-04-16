@@ -2,168 +2,320 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useUser, useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection, getDocs, writeBatch } from 'firebase/firestore';
-import { VoterGroup } from '@/lib/types';
+import { useState, useMemo } from 'react';
+import { collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { 
+  Fingerprint, 
+  Search, 
+  UserPlus, 
+  Trash2, 
+  ArrowLeft, 
+  Loader2, 
+  AlertCircle,
+  Users,
+  Save
+} from 'lucide-react';
+
+import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
+import { VoterGroup, ListaCompletaItem, VoterInfo } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import GroupDetailsLoading from './loading';
-import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import GroupDetailsLoading from './loading';
 
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
   const { user, isUserLoading } = useUser();
   const firestore = useFirestore();
-  const router = useRouter();
   const { toast } = useToast();
+  
+  const [searchId, setSearchId] = useState('');
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualNames, setManualNames] = useState('');
+  const [manualLastNames, setManualLastNames] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
+  // Get current group data
   const groupRef = useMemoFirebase(() => {
     if (!firestore || !user || !groupId) return null;
     return doc(firestore, 'admins', user.uid, 'groups', groupId);
   }, [firestore, user, groupId]);
 
-  const { data: group, isLoading, error } = useDoc<VoterGroup>(groupRef);
+  const { data: group, isLoading: isGroupLoading } = useDoc<VoterGroup>(groupRef);
 
-  const handleVoterStatusChange = async (voterId: string, newStatus: boolean) => {
-    if (!firestore || !user || !group || !groupRef || !groupId) return;
+  // Load personnel list for lookup
+  const personalQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'admins', user.uid, 'lista_completa');
+  }, [firestore, user]);
 
-    const updatedVoters = group.voters.map(v =>
-        v.id === voterId ? { ...v, enabled: newStatus } : v
+  const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
+
+  // Search logic
+  const foundVoterInList = useMemo(() => {
+    if (!searchId.trim() || !personnel) return null;
+    const search = searchId.trim().toLowerCase();
+    return personnel.find(p => 
+      String(p.regGeneral).toLowerCase() === search || 
+      p.id.toLowerCase() === search
     );
+  }, [searchId, personnel]);
+
+  const addVoterToGroup = async (voter: VoterInfo) => {
+    if (!group || !groupRef) return;
+
+    if (group.voters.some(v => v.id === voter.id)) {
+      toast({ variant: 'destructive', title: 'Ya existe', description: 'Esta persona ya está en el grupo.' });
+      return;
+    }
+
+    const updatedVoters = [...group.voters, voter];
+    setIsUpdating(true);
 
     try {
-        const batch = writeBatch(firestore);
-
-        // 1. Update the main group document
-        batch.update(groupRef, { voters: updatedVoters });
-
-        // 2. Propagate change to all active polls that use this group.
-        const pollsRef = collection(firestore, 'admins', user.uid, 'polls');
-        const allPollsSnapshot = await getDocs(pollsRef);
-        const activePollDocs = allPollsSnapshot.docs.filter(doc => {
-            const pollData = doc.data();
-            return pollData.groupId === groupId && pollData.status === 'active';
-        });
-
-        let updatedInPollsCount = 0;
-        const pollsCheckedCount = activePollDocs.length;
-
-        // This is an expensive operation if there are many active polls with many voters,
-        // but it's the most robust way to ensure propagation without depending on complex indexes.
-        for (const pollDoc of activePollDocs) {
-            const votersSubcollectionRef = collection(pollDoc.ref, 'voters');
-            const allVotersInPollSnapshot = await getDocs(votersSubcollectionRef);
-
-            const voterDocToUpdate = allVotersInPollSnapshot.docs.find(voterDoc => voterDoc.data().voterId === voterId);
-
-            if (voterDocToUpdate) {
-                batch.update(voterDocToUpdate.ref, { enabled: newStatus });
-                updatedInPollsCount++;
-            }
-        }
-        
-        await batch.commit();
-
-        toast({
-            title: "Estado del votante actualizado",
-            description: `El estado se actualizó en el grupo y en ${updatedInPollsCount} de ${pollsCheckedCount} votación(es) activa(s).`,
-        });
-    } catch (err: any) {
-        let description = "No se pudo cambiar el estado del votante.";
-        
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: groupRef.path,
-            operation: 'update',
-            requestResourceData: { voters: updatedVoters },
-        }));
-
-        toast({
-            variant: "destructive",
-            title: "Error al actualizar",
-            description: description,
-        });
+      await updateDoc(groupRef, { voters: updatedVoters });
+      toast({ title: 'Votante Agregado', description: `${voter.nombre} ha sido añadido al grupo.` });
+      setSearchId('');
+    } catch (error) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: groupRef.path,
+        operation: 'update',
+        requestResourceData: { voters: updatedVoters }
+      }));
+    } finally {
+      setIsUpdating(false);
     }
   };
 
+  const removeVoterFromGroup = async (voterId: string) => {
+    if (!group || !groupRef) return;
 
-  if (isLoading || isUserLoading) {
+    const updatedVoters = group.voters.filter(v => v.id !== voterId);
+    setIsUpdating(true);
+
+    try {
+      await updateDoc(groupRef, { voters: updatedVoters });
+      toast({ title: 'Votante Eliminado', description: 'La persona ha sido retirada del grupo.' });
+    } catch (error) {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: groupRef.path,
+        operation: 'update',
+        requestResourceData: { voters: updatedVoters }
+      }));
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const addManualVoter = () => {
+    if (!manualNames.trim() || !manualLastNames.trim()) {
+      toast({ variant: 'destructive', title: 'Datos incompletos', description: 'Por favor ingresa nombre y apellido.' });
+      return;
+    }
+
+    // Generate unique external ID
+    const randomDigits = Math.floor(10000 + Math.random() * 90000).toString();
+    const newId = `EXT-${randomDigits}`;
+
+    addVoterToGroup({
+      id: newId,
+      nombre: manualNames.trim(),
+      apellido: manualLastNames.trim(),
+      enabled: true
+    });
+    
+    setManualNames('');
+    setManualLastNames('');
+    setShowManualForm(false);
+  };
+
+  if (isUserLoading || isGroupLoading) {
     return <GroupDetailsLoading />;
   }
 
-  if (error || !group) {
+  if (!group) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Error al cargar el grupo</CardTitle>
-          <CardDescription>
-            No se pudo cargar el grupo. Es posible que no exista o no tengas permiso para verlo.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link href="/admin/groups">Volver a Grupos</Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center h-full space-y-4">
+        <h2 className="text-xl font-bold">Grupo no encontrado</h2>
+        <Button asChild><Link href="/admin/groups">Volver a Grupos</Link></Button>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       <div className='flex items-center justify-between'>
-        <h1 className="text-2xl font-bold font-headline">Detalles del Grupo</h1>
-        <Button asChild variant="outline">
-          <Link href="/admin/groups">Volver a Grupos</Link>
-        </Button>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/groups"><ArrowLeft className="h-5 w-5" /></Link>
+          </Button>
+          <h1 className="text-2xl font-bold font-headline">Enrolamiento: {group.name}</h1>
+        </div>
+        {isUpdating && (
+          <div className="flex items-center text-sm text-muted-foreground animate-pulse">
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Guardando cambios...
+          </div>
+        )}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{group.name}</CardTitle>
-          <CardDescription>
-            Este grupo tiene {(group.voters || []).length} votantes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>ID de Votante</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Apellido</TableHead>
-                <TableHead className="text-right">Estado</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(group.voters || []).map((voter) => (
-                <TableRow key={voter.id}>
-                  <TableCell className="font-mono text-xs">{voter.id}</TableCell>
-                  <TableCell>{voter.nombre}</TableCell>
-                  <TableCell>{voter.apellido}</TableCell>
-                  <TableCell className="text-right">
-                    <Switch
-                        checked={voter.enabled !== false}
-                        onCheckedChange={(checked) => handleVoterStatusChange(voter.id, checked)}
-                        aria-label={`Estado del votante ${voter.nombre}`}
-                    />
-                  </TableCell>
-                </TableRow>
-              ))}
-               {(group.voters || []).length === 0 && (
-                <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
-                        No hay votantes en este grupo.
-                    </TableCell>
-                </TableRow>
-               )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Fingerprint className="h-5 w-5 text-primary" />
+                Escanear RFID / ID
+              </CardTitle>
+              <CardDescription>Busca personas en el listado oficial.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="ID o Nro de Registro..." 
+                  className="pl-9"
+                  value={searchId}
+                  onChange={(e) => setSearchId(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && foundVoterInList) {
+                      addVoterToGroup({
+                        id: foundVoterInList.regGeneral || foundVoterInList.id,
+                        nombre: foundVoterInList.nombres,
+                        apellido: foundVoterInList.apellidos,
+                        enabled: true
+                      });
+                    }
+                  }}
+                />
+              </div>
+              {foundVoterInList ? (
+                <div className="space-y-3">
+                  <Alert className="bg-primary/5 border-primary/20">
+                    <AlertDescription className="text-sm">
+                      <p className="font-bold">{foundVoterInList.nombres} {foundVoterInList.apellidos}</p>
+                      <p className="text-xs text-muted-foreground">{foundVoterInList.tipo}</p>
+                    </AlertDescription>
+                  </Alert>
+                  <Button 
+                    className="w-full" 
+                    onClick={() => addVoterToGroup({
+                      id: foundVoterInList.regGeneral || foundVoterInList.id,
+                      nombre: foundVoterInList.nombres,
+                      apellido: foundVoterInList.apellidos,
+                      enabled: true
+                    })}
+                    disabled={isUpdating}
+                  >
+                    Agregar al Grupo
+                  </Button>
+                </div>
+              ) : searchId.trim() !== '' ? (
+                <p className="text-xs text-destructive flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> No se encontró en el listado oficial.
+                </p>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-primary" />
+                Votante Externo
+              </CardTitle>
+              <CardDescription>Agregar sin registro previo en el listado.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {showManualForm ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Nombres</Label>
+                    <Input value={manualNames} onChange={(e) => setManualNames(e.target.value)} placeholder="Ej: Juan" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Apellidos</Label>
+                    <Input value={manualLastNames} onChange={(e) => setManualLastNames(e.target.value)} placeholder="Ej: Pérez" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={() => setShowManualForm(false)}>Cancelar</Button>
+                    <Button className="flex-1" onClick={addManualVoter} disabled={isUpdating}>Asignar EXT-ID</Button>
+                  </div>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full" onClick={() => setShowManualForm(true)}>
+                  Registrar Manualmente
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="lg:col-span-2">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Users className="h-5 w-5" /> Miembros del Grupo
+                </CardTitle>
+                <CardDescription>Personas actualmente enroladas en este grupo.</CardDescription>
+              </div>
+              <div className="text-2xl font-bold">{group.voters.length}</div>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ID de Registro</TableHead>
+                      <TableHead>Nombre Completo</TableHead>
+                      <TableHead className="text-right">Acción</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {group.voters.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={3} className="h-32 text-center text-muted-foreground italic">
+                          No hay personas enroladas aún.<br />Usa el panel lateral para agregar miembros.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      group.voters.map((voter) => (
+                        <TableRow key={voter.id}>
+                          <TableCell className="font-mono text-xs">
+                            <span className={voter.id.startsWith('EXT-') ? 'text-blue-600 font-semibold' : ''}>
+                              {voter.id}
+                            </span>
+                          </TableCell>
+                          <TableCell>{voter.nombre} {voter.apellido}</TableCell>
+                          <TableCell className="text-right">
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => removeVoterFromGroup(voter.id)}
+                              disabled={isUpdating}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
