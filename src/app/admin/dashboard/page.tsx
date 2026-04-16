@@ -1,11 +1,11 @@
 'use client';
 
-import { collection, query, orderBy, doc, writeBatch, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, Users, PlusCircle } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { MoreHorizontal, Users } from 'lucide-react';
+import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, VoterGroup } from '@/lib/types';
@@ -31,12 +31,14 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
-const statusVariant: { [key: string]: 'default' | 'secondary' } = {
+const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
+  pending: 'outline',
   active: 'default',
   closed: 'secondary',
 };
 
 const statusText: { [key: string]: string } = {
+  pending: 'Pendiente',
   active: 'Activa',
   closed: 'Cerrada',
 };
@@ -115,7 +117,6 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
           <CardContent>
             {isLoading ? (
                 <>
-                    {/* Mobile Skeleton */}
                     <div className="md:hidden space-y-4">
                         {[...Array(3)].map((_, i) => (
                             <Card key={i}>
@@ -125,7 +126,6 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                             </Card>
                         ))}
                     </div>
-                    {/* Desktop Skeleton */}
                     <div className="hidden md:block">
                     <Table>
                         <TableHeader><TableRow><TableHead>Pregunta</TableHead><TableHead>Estado</TableHead><TableHead>Creado</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader>
@@ -143,35 +143,17 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                     </div>
                 </>
             ) : !polls || polls.length === 0 ? (
-                (() => {
-                    const noGroups = !groups || groups.length === 0;
-                    return (
-                        <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
-                        <h3 className="text-lg font-semibold">{noGroups ? "Primero crea un grupo" : "Aún no tienes votaciones"}</h3>
-                        <p className="text-muted-foreground text-sm max-w-md">
-                            {noGroups
-                            ? "Para crear una votación, primero necesitas organizar a tus participantes en grupos de votantes."
-                            : "¡Es hora de crear tu primera votación para que tus grupos puedan votar!"
-                            }
-                        </p>
-                        {noGroups && (
-                            <Button asChild>
-                                <Link href="/admin/groups">
-                                    <Users className="mr-2 h-4 w-4" />
-                                    Ir a Grupos
-                                </Link>
-                            </Button>
-                        )}
-                        </div>
-                    );
-                })()
+                <div className="h-40 text-center flex flex-col justify-center items-center space-y-3 border-2 border-dashed rounded-lg">
+                    <h3 className="text-lg font-semibold">Aún no tienes votaciones</h3>
+                    <p className="text-muted-foreground text-sm max-w-md">
+                        ¡Crea tu primera votación para empezar!
+                    </p>
+                </div>
             ) : (
                 <>
-                    {/* Mobile List */}
                     <div className="md:hidden space-y-4">
                         {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={onPollDeleteClick} />)}
                     </div>
-                    {/* Desktop Table */}
                     <div className="hidden md:block">
                         <Table>
                         <TableHeader>
@@ -220,29 +202,22 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
 }
 
 
-// This is the main page component. It only manages the dialog state and renders the contents.
 export default function DashboardPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { toast } = useToast();
-  
-  // State for the single, global dialog. It holds the poll to be deleted.
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
 
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
     
-    // The key change: create a copy and close the dialog *before* the async operation.
-    const pollToDeleteCopy = { ...pollToDelete };
-    setPollToDelete(null); // This closes the dialog, allowing Radix to animate out cleanly
+    const pollId = pollToDelete.id;
+    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollId);
+    const lookupRef = doc(firestore, 'poll-lookup', pollId);
 
-    toast({
-        title: "Eliminando votación...",
-        description: `Por favor, espera un momento.`,
-    });
+    setPollToDelete(null);
 
-    const pollRef = doc(firestore, 'admins', user.uid, 'polls', pollToDeleteCopy.id);
-    const lookupRef = doc(firestore, 'poll-lookup', pollToDeleteCopy.id);
+    toast({ title: "Eliminando votación..." });
 
     try {
         const batch = writeBatch(firestore);
@@ -250,20 +225,12 @@ export default function DashboardPage() {
         batch.delete(lookupRef);
         await batch.commit();
 
-        toast({
-            title: "¡Votación Eliminada!",
-            description: `La votación "${pollToDeleteCopy.question}" se eliminó correctamente.`,
-        });
+        toast({ title: "¡Votación Eliminada!" });
     } catch(error: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: pollRef.path,
             operation: 'delete',
         }));
-        toast({
-             variant: "destructive",
-             title: "Error al eliminar",
-             description: "No se pudo eliminar la votación. Es posible que no tengas permisos."
-        });
     }
   };
   
@@ -276,24 +243,18 @@ export default function DashboardPage() {
       
       <DashboardContents onPollDeleteClick={setPollToDelete} />
 
-      {/* This is the single, global AlertDialog. It is controlled by `pollToDelete` state. */}
       <AlertDialog open={!!pollToDelete} onOpenChange={(open) => !open && setPollToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
                 <AlertDialogTitle>¿Estás realmente seguro?</AlertDialogTitle>
                 <AlertDialogDescription>
-                    Esta acción no se puede deshacer. Se eliminará permanentemente la votación
-                    <span className="font-semibold"> {pollToDelete?.question}</span> y todos sus datos asociados.
-                    Los votos no podrán ser recuperados.
+                    Se eliminará permanentemente la votación <span className="font-semibold">{pollToDelete?.question}</span>.
                 </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleDeleteConfirm} 
-                  className={buttonVariants({ variant: "destructive" })}
-                >
-                    Eliminar Permanentemente
+                <AlertDialogAction onClick={handleDeleteConfirm} className={buttonVariants({ variant: "destructive" })}>
+                    Eliminar
                 </AlertDialogAction>
             </AlertDialogFooter>
         </AlertDialogContent>

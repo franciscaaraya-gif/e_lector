@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-export type PollStatus = 'active' | 'closed';
+export type PollStatus = 'pending' | 'active' | 'closed';
 export type PollType = 'simple' | 'multiple';
 
 export type PollOption = {
@@ -15,7 +15,7 @@ export type Poll = {
   status: PollStatus;
   pollType: PollType;
   maxSelections?: number;
-  groupId: string;
+  groupId?: string;
   createdAt: Timestamp;
   adminId: string;
 };
@@ -105,6 +105,3 @@ export type PollTemplate = {
     maxSelections?: number;
     eleccionDeCargo?: boolean;
 };
-
-    
-    

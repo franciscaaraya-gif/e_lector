@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useForm, useFieldArray, ControllerRenderProps } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { addDoc, collection, serverTimestamp, writeBatch, doc, query, where } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, doc, query, where, writeBatch } from 'firebase/firestore';
 import { PlusCircle, Loader2, Trash2, Plus, GripVertical } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -25,7 +25,7 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebas
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn } from '@/lib/utils';
-import { VoterGroup, PollTemplate, ListaCompletaItem } from '@/lib/types';
+import { PollTemplate, ListaCompletaItem } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
@@ -43,7 +43,6 @@ const formSchema = z.object({
     required_error: 'Debes seleccionar un tipo de votación.',
   }),
   maxSelections: z.coerce.number().optional(),
-  groupId: z.string({ required_error: 'Debes seleccionar un grupo de votantes.' }),
 }).refine(data => {
     if (data.pollType === 'multiple') {
         return data.maxSelections && data.maxSelections > 1 && data.maxSelections <= data.options.length;
@@ -54,7 +53,7 @@ const formSchema = z.object({
     path: ['maxSelections'],
 });
 
-const AutocompleteInput = ({ field, index, volunteers }: { field: ControllerRenderProps<z.infer<typeof formSchema>, `options.${number}.text`>, index: number, volunteers: ListaCompletaItem[] }) => {
+const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: number, volunteers: ListaCompletaItem[] }) => {
     const [suggestions, setSuggestions] = useState<ListaCompletaItem[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -123,13 +122,6 @@ export function CreatePollDialog() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
   const [isCargoElection, setIsCargoElection] = useState(false);
 
-  const groupsQuery = useMemoFirebase(() => {
-    if (!user || !firestore) return null;
-    return collection(firestore, `admins/${user.uid}/groups`);
-  }, [user, firestore]);
-
-  const { data: voterGroups, isLoading: groupsLoading } = useCollection<VoterGroup>(groupsQuery);
-
   const templatesQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
     return collection(firestore, `admins/${user.uid}/poll_templates`);
@@ -142,14 +134,12 @@ export function CreatePollDialog() {
   }, [firestore, user, isCargoElection]);
   const { data: volunteers } = useCollection<ListaCompletaItem>(volunteersQuery);
 
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       question: '',
       options: [{ text: '' }, { text: '' }],
       pollType: 'simple',
-      groupId: undefined,
     },
   });
 
@@ -184,13 +174,11 @@ export function CreatePollDialog() {
     }
   };
 
-
   const resetDialog = () => {
     form.reset({
         question: '',
         options: [{ text: '' }, { text: '' }],
         pollType: 'simple',
-        groupId: undefined,
     });
     setIsLoading(false);
     setSelectedTemplateId('custom');
@@ -198,24 +186,11 @@ export function CreatePollDialog() {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!firestore || !user) return toast({ variant: 'destructive', title: 'Error de Autenticación' });
-    if (!voterGroups) return toast({ variant: 'destructive', title: 'Error', description: 'No se pudieron cargar los grupos.' });
+    if (!firestore || !user) return;
     
     setIsLoading(true);
 
     try {
-        const selectedGroup = voterGroups.find(g => g.id === values.groupId);
-        if (!selectedGroup || !selectedGroup.voters) {
-            setIsLoading(false);
-            return toast({ variant: 'destructive', title: 'Grupo inválido', description: 'El grupo seleccionado no existe o está vacío.' });
-        }
-
-        const enabledVoters = selectedGroup.voters.filter(v => v.enabled !== false);
-        if (enabledVoters.length === 0) {
-            setIsLoading(false);
-            return toast({ variant: 'destructive', title: 'Grupo sin votantes', description: 'El grupo seleccionado no tiene votantes habilitados.' });
-        }
-
         const pollsCollection = collection(firestore, 'admins', user.uid, 'polls');
         const newPollRef = doc(pollsCollection);
 
@@ -225,28 +200,14 @@ export function CreatePollDialog() {
             options: values.options.map((opt, index) => ({ id: `opt_${index + 1}`, text: opt.text })),
             pollType: values.pollType,
             ...(values.pollType === 'multiple' && { maxSelections: values.maxSelections }),
-            groupId: values.groupId,
-            status: 'active' as const,
+            status: 'pending' as const,
             adminId: user.uid,
             createdAt: serverTimestamp(),
         };
 
         const batch = writeBatch(firestore);
-
         batch.set(newPollRef, newPollData);
         
-        const votersSubcollectionRef = collection(firestore, 'admins', user.uid, 'polls', newPollRef.id, 'voters');
-        enabledVoters.forEach(voter => {
-            const newVoterDocRef = doc(votersSubcollectionRef);
-            batch.set(newVoterDocRef, {
-                voterId: voter.id,
-                pollId: newPollRef.id,
-                hasVoted: false,
-                adminId: user.uid, 
-                enabled: true,
-            });
-        });
-
         const lookupRef = doc(firestore, 'poll-lookup', newPollRef.id);
         batch.set(lookupRef, { adminId: user.uid });
         
@@ -254,27 +215,18 @@ export function CreatePollDialog() {
 
         toast({
             title: '¡Votación Creada!',
-            description: `La votación se asignó a ${enabledVoters.length} votantes del grupo "${selectedGroup.name}".`,
+            description: `La votación se ha guardado como pendiente. Ahora puedes asignarle un grupo.`,
         });
 
         setOpen(false);
         resetDialog();
 
     } catch (error: any) {
-        if (error.code && error.code.startsWith('permission-denied')) {
-            const permissionError = new FirestorePermissionError({
-                path: `admins/${user.uid}/polls`,
-                operation: 'create',
-                requestResourceData: values,
-            });
-            errorEmitter.emit('permission-error', permissionError);
-        } else {
-             toast({
-                variant: 'destructive',
-                title: 'Error al crear la votación',
-                description: error.message || 'No se pudo crear la votación. Revisa la consola para más detalles.'
-            });
-        }
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `admins/${user?.uid}/polls`,
+            operation: 'create',
+            requestResourceData: values,
+        }));
     } finally {
         setIsLoading(false);
     }
@@ -283,7 +235,7 @@ export function CreatePollDialog() {
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if(!isOpen) resetDialog(); }}>
       <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto" disabled={groupsLoading || !voterGroups || voterGroups.length === 0}>
+        <Button className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           Crear Votación
         </Button>
@@ -292,7 +244,7 @@ export function CreatePollDialog() {
         <DialogHeader>
           <DialogTitle>Crear Nueva Votación</DialogTitle>
           <DialogDescription>
-            Configura los detalles de tu votación. Se creará como "activa" inmediatamente.
+            Configura los detalles de tu votación. Podrás asignar el grupo más adelante.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -312,9 +264,6 @@ export function CreatePollDialog() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[0.8rem] text-muted-foreground">
-                Seleccionar una plantilla llenará automáticamente el tipo de votación y otras opciones.
-              </p>
             </div>
             
             <FormField
@@ -335,8 +284,8 @@ export function CreatePollDialog() {
               <Label>Opciones de Respuesta</Label>
               {isCargoElection && (
                 <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
-                    <AlertDescription>
-                        Elección de Cargo: Escribe 3+ letras del nombre o apellido para buscar en la lista de voluntarios.
+                    <AlertDescription className="text-xs">
+                        Elección de Cargo: Busca nombres de voluntarios escribiendo 3+ letras.
                     </AlertDescription>
                 </Alert>
               )}
@@ -396,20 +345,12 @@ export function CreatePollDialog() {
                       disabled={selectedTemplateId !== 'custom'}
                     >
                       <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="simple" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                         Elección Simple (un solo voto por persona)
-                        </FormLabel>
+                        <FormControl><RadioGroupItem value="simple" /></FormControl>
+                        <FormLabel className="font-normal">Elección Simple</FormLabel>
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="multiple" />
-                        </FormControl>
-                        <FormLabel className="font-normal">
-                          Selección Múltiple (varios votos por persona)
-                        </FormLabel>
+                        <FormControl><RadioGroupItem value="multiple" /></FormControl>
+                        <FormLabel className="font-normal">Selección Múltiple</FormLabel>
                       </FormItem>
                     </RadioGroup>
                   </FormControl>
@@ -428,40 +369,11 @@ export function CreatePollDialog() {
                     <FormControl>
                       <Input type="number" placeholder="Ej: 3" {...field} min={2} disabled={selectedTemplateId !== 'custom'} />
                     </FormControl>
-                    <FormDescription>
-                      El número de opciones que cada votante puede seleccionar.
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             )}
-            
-            <FormField
-              control={form.control}
-              name="groupId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Grupo de Votantes</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value} disabled={groupsLoading}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder={groupsLoading ? "Cargando grupos..." : "Selecciona un grupo"} />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {voterGroups?.map(group => (
-                        <SelectItem key={group.id} value={group.id}>{group.name} ({(group.voters || []).length} votantes)</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                   <FormDescription>
-                      Este es el grupo de personas que podrá votar en la votación.
-                    </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <DialogFooter className="pt-4 sticky bottom-0 bg-background pb-0 -mx-6 px-6 border-t">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={isLoading}>
@@ -469,7 +381,7 @@ export function CreatePollDialog() {
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Crear Votación
+                Guardar Votación
               </Button>
             </DialogFooter>
           </form>

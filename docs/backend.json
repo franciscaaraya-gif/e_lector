@@ -28,8 +28,8 @@
         },
         "status": {
           "type": "string",
-          "description": "El estado de la votación (ej. abierta, cerrada).",
-          "enum": ["active", "closed"]
+          "description": "El estado de la votación.",
+          "enum": ["pending", "active", "closed"]
         },
         "pollType": {
           "type": "string",
@@ -42,11 +42,11 @@
         },
         "groupId": {
             "type": "string",
-            "description": "El ID del grupo de votantes para el que es esta votación."
+            "description": "El ID del grupo de votantes asignado."
         },
         "adminId": {
           "type": "string",
-          "description": "Referencia al Administrador que creó la votación. (Relación: Admin 1:N Votación)"
+          "description": "Referencia al Administrador que creó la votación."
         },
         "createdAt": {
             "type": "string",
@@ -60,253 +60,53 @@
         "options",
         "status",
         "pollType",
-        "groupId",
         "adminId",
         "createdAt"
       ]
     },
     "Voter": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Voter",
       "type": "object",
-      "description": "Representa un votante registrado y su estado de voto para una votación específica.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Identificador único para el registro del votante."
-        },
-        "pollId": {
-          "type": "string",
-          "description": "Referencia a la Votación a la que este votante está asociado. (Relación: Votación 1:N Votante)"
-        },
-        "voterId": {
-          "type": "string",
-          "description": "El identificador único de negocio para el votante."
-        },
-        "hasVoted": {
-          "type": "boolean",
-          "description": "Indica si el votante ya ha votado en la votación."
-        },
-        "adminId": {
-          "type": "string",
-          "description": "Referencia desnormalizada al Administrador que creó la votación."
-        }
+        "id": { "type": "string" },
+        "pollId": { "type": "string" },
+        "voterId": { "type": "string" },
+        "hasVoted": { "type": "boolean" },
+        "adminId": { "type": "string" }
       },
-      "required": [
-        "id",
-        "pollId",
-        "voterId",
-        "hasVoted",
-        "adminId"
-      ]
+      "required": ["id", "pollId", "voterId", "hasVoted", "adminId"]
     },
     "Vote": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Vote",
       "type": "object",
-      "description": "Representa un voto anónimo emitido en una votación.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Identificador único para el voto."
-        },
-        "pollId": {
-          "type": "string",
-          "description": "Referencia a la Votación a la que pertenece este voto. (Relación: Votación 1:N Voto)"
-        },
-        "selectedOptions": {
-          "type": "array",
-          "description": "La(s) opción(es) seleccionada(s) por el votante.",
-          "items": {
-            "type": "string"
-          }
-        }
+        "id": { "type": "string" },
+        "pollId": { "type": "string" },
+        "selectedOptions": { "type": "array", "items": { "type": "string" } }
       },
-      "required": [
-        "id",
-        "pollId",
-        "selectedOptions"
-      ]
+      "required": ["id", "pollId", "selectedOptions"]
     },
     "Admin": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Admin",
       "type": "object",
-      "description": "Represents an administrator user.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the administrator."
-        },
-        "email": {
-          "type": "string",
-          "description": "Email address of the administrator.",
-          "format": "email"
-        },
-        "isBombero": {
-          "type": "boolean",
-          "description": "Flag to indicate if the admin is a firefighter to control UI."
-        }
+        "id": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "isBombero": { "type": "boolean" }
       },
-      "required": [
-        "id",
-        "email"
-      ]
+      "required": ["id", "email"]
     },
     "VoterGroup": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Voter Group",
       "type": "object",
-      "description": "Represents a reusable group of voters created by an admin.",
       "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the voter group." },
-        "name": { "type": "string", "description": "The name of the voter group." },
-        "adminId": { "type": "string", "description": "The ID of the admin who owns this group." },
-        "voters": {
-          "type": "array",
-          "description": "A list of voters in this group.",
-          "items": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string", "description": "The unique identifier for the voter." },
-              "nombre": { "type": "string", "description": "The first name of the voter." },
-              "apellido": { "type": "string", "description": "The last name of the voter." },
-              "enabled": { "type": "boolean", "description": "Indicates if the voter is active and can participate in polls." }
-            },
-            "required": ["id", "nombre", "apellido", "enabled"]
-          }
-        },
-        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp of when the group was created." }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "adminId": { "type": "string" },
+        "voters": { "type": "array", "items": { "type": "object" } },
+        "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "name", "adminId", "voters", "createdAt"]
-    },
-    "PollLookup": {
-      "title": "Poll Lookup",
-      "type": "object",
-      "description": "Un documento de búsqueda para encontrar el adminId para un pollId dado.",
-      "properties": {
-        "adminId": {
-          "type": "string",
-          "description": "The ID of the admin who created the poll."
-        }
-      },
-      "required": ["adminId"]
-    },
-    "AuthorizedAdmin": {
-      "title": "Authorized Admin",
-      "type": "object",
-      "description": "Represents an email address that is authorized to be an administrator.",
-      "properties": {
-        "email": {
-          "type": "string",
-          "description": "The email address of the authorized admin.",
-          "format": "email"
-        }
-      },
-      "required": ["email"]
-    },
-    "Sala": {
-      "title": "Sala",
-      "type": "object",
-      "description": "Represents a public room or space for voting, linked to an admin.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the sala."
-        },
-        "name": {
-          "type": "string",
-          "description": "The public display name of the sala."
-        },
-        "adminId": {
-          "type": "string",
-          "description": "The UID of the admin who owns this sala."
-        }
-      },
-      "required": ["id", "name", "adminId"]
-    },
-    "ListaCompletaItem": {
-      "title": "Lista Completa Item",
-      "type": "object",
-      "description": "Represents a single person in the complete list of the company (martyrs, volunteers, etc.).",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the item." },
-        "adminId": { "type": "string", "description": "The ID of the admin who owns this item." },
-        "nombres": { "type": "string" },
-        "apellidos": { "type": "string" },
-        "tipo": { "type": "string", "description": "Type of member, e.g., 'martir', 'Bombero', 'Honorario'." },
-        "ci": { "type": "string" },
-        "regGeneral": { "type": "string" },
-        "compania": { "type": "string" },
-        "grupoSangre": { "type": "string" },
-        "donante": { "type": "string" },
-        "alergias": { "type": "string" },
-        "cargo": { "type": "string" },
-        "calidad": { "type": "string" }
-      },
-      "required": ["id", "adminId", "tipo"]
-    },
-    "OrdenLista": {
-      "title": "Orden Lista",
-      "type": "object",
-      "description": "Defines the display order and sorting method for a specific type of member.",
-      "properties": {
-        "id": { "type": "string", "description": "Unique identifier for the ordering rule." },
-        "adminId": { "type": "string", "description": "The ID of the admin who owns this rule." },
-        "tipo": { "type": "string", "description": "The member type this rule applies to (e.g., 'Bombero')." },
-        "orden": { "type": "number", "description": "The numerical order for display, lower numbers first." },
-        "metodo": {
-          "type": "string",
-          "description": "The sorting method for members within this type.",
-          "enum": ["apellidos_asc", "carga", "registro", "jerarquia"]
-        }
-      },
-      "required": ["id", "adminId", "tipo", "orden", "metodo"]
-    },
-    "PollTemplate": {
-      "title": "Poll Template",
-      "type": "object",
-      "description": "Representa una plantilla reutilizable para una votación estándar.",
-      "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the template."
-        },
-        "adminId": {
-          "type": "string",
-          "description": "The ID of the admin who owns this template."
-        },
-        "name": {
-          "type": "string",
-          "description": "El nombre o título de la plantilla de votación."
-        },
-        "question": {
-          "type": "string",
-          "description": "La pregunta predefinida para la plantilla."
-        },
-        "pollType": {
-          "type": "string",
-          "enum": [
-            "simple",
-            "multiple"
-          ]
-        },
-        "maxSelections": {
-          "type": "number",
-          "description": "Selecciones máximas para una votación de opción múltiple."
-        },
-        "eleccionDeCargo": {
-          "type": "boolean",
-          "description": "Indica si esta votación es para elegir un cargo, usando la lista de voluntarios como opciones."
-        }
-      },
-      "required": [
-        "id",
-        "adminId",
-        "name",
-        "pollType",
-        "question"
-      ]
     }
   },
   "auth": {
@@ -322,195 +122,26 @@
         "path": "/admins/{adminId}",
         "definition": {
           "entityName": "Admin",
-          "schema": {
-            "$ref": "#/backend/entities/Admin"
-          },
-          "description": "Collection to store administrator profiles.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "Unique identifier for the administrator."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/Admin" },
+          "description": "Administradores."
         }
       },
       {
         "path": "/admins/{adminId}/polls/{pollId}",
         "definition": {
           "entityName": "Poll",
-          "schema": {
-            "$ref": "#/backend/entities/Poll"
-          },
-          "description": "Subcolección para almacenar las votaciones creadas por cada administrador. Incluye 'adminId' desnormalizado para independencia de autorización.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "Unique identifier for the administrator."
-            },
-            {
-              "name": "pollId",
-              "description": "Unique identifier for the poll."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/admins/{adminId}/polls/{pollId}/voters/{voterId}",
-        "definition": {
-          "entityName": "Voter",
-          "schema": {
-            "$ref": "#/backend/entities/Voter"
-          },
-          "description": "Subcolección para almacenar votantes registrados para una votación específica. Incluye 'pollId' y 'adminId' desnormalizados para consultas seguras.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "Unique identifier for the administrator."
-            },
-            {
-              "name": "pollId",
-              "description": "Unique identifier for the poll."
-            },
-            {
-              "name": "voterId",
-              "description": "Unique identifier for the voter."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/admins/{adminId}/polls/{pollId}/votes/{voteId}",
-        "definition": {
-          "entityName": "Vote",
-          "schema": {
-            "$ref": "#/backend/entities/Vote"
-          },
-          "description": "Subcolección para almacenar votos anónimos emitidos en una votación específica. Incluye 'pollId' desnormalizado para independencia de autorización.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "Unique identifier for the administrator."
-            },
-            {
-              "name": "pollId",
-              "description": "Unique identifier for the poll."
-            },
-            {
-              "name": "voteId",
-              "description": "Unique identifier for the vote."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/Poll" },
+          "description": "Votaciones."
         }
       },
       {
         "path": "/admins/{adminId}/groups/{groupId}",
         "definition": {
           "entityName": "VoterGroup",
-          "schema": {
-            "$ref": "#/backend/entities/VoterGroup"
-          },
-          "description": "Subcollection to store reusable voter groups created by each admin.",
-          "params": [
-            {
-              "name": "adminId",
-              "description": "Unique identifier for the administrator."
-            },
-            {
-              "name": "groupId",
-              "description": "Unique identifier for the voter group."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/admins/{adminId}/lista_completa/{itemId}",
-        "definition": {
-          "entityName": "ListaCompletaItem",
-          "schema": {
-            "$ref": "#/backend/entities/ListaCompletaItem"
-          },
-          "description": "Subcollection for all company members (martyrs, volunteers, etc.).",
-          "params": [
-            { "name": "adminId", "description": "Admin's UID." },
-            { "name": "itemId", "description": "Unique ID for the list item." }
-          ]
-        }
-      },
-      {
-        "path": "/admins/{adminId}/orden_lista/{ordenId}",
-        "definition": {
-          "entityName": "OrdenLista",
-          "schema": { "$ref": "#/backend/entities/OrdenLista" },
-          "description": "Subcollection to store the display order rules for member types.",
-          "params": [
-            { "name": "adminId", "description": "Admin's UID." },
-            { "name": "ordenId", "description": "Unique ID for the ordering rule." }
-          ]
-        }
-      },
-      {
-        "path": "/admins/{adminId}/poll_templates/{templateId}",
-        "definition": {
-          "entityName": "PollTemplate",
-          "schema": { "$ref": "#/backend/entities/PollTemplate" },
-          "description": "Subcollection for reusable poll templates.",
-          "params": [
-            { "name": "adminId", "description": "Admin's UID." },
-            { "name": "templateId", "description": "Unique ID for the poll template." }
-          ]
-        }
-      },
-      {
-        "path": "/poll-lookup/{pollId}",
-        "definition": {
-          "entityName": "PollLookup",
-          "schema": {
-            "$ref": "#/backend/entities/PollLookup"
-          },
-          "description": "Una tabla de búsqueda pública para encontrar el administrador propietario de una votación.",
-          "params": [
-            {
-              "name": "pollId",
-              "description": "Unique identifier for the poll."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/authorizedAdmins/{authId}",
-        "definition": {
-          "entityName": "AuthorizedAdmin",
-          "schema": {
-            "$ref": "#/backend/entities/AuthorizedAdmin"
-          },
-          "description": "A whitelist collection of emails for users who are permitted to be administrators. This list should be managed from the Firebase Console.",
-          "params": [
-            {
-              "name": "authId",
-              "description": "Unique identifier for the authorized email document."
-            }
-          ]
-        }
-      },
-      {
-        "path": "/salas/{salaId}",
-        "definition": {
-          "entityName": "Sala",
-          "schema": {
-            "$ref": "#/backend/entities/Sala"
-          },
-          "description": "A public collection mapping friendly names to admin IDs for the voter inbox.",
-          "params": [
-            {
-              "name": "salaId",
-              "description": "Unique identifier for the sala document."
-            }
-          ]
+          "schema": { "$ref": "#/backend/entities/VoterGroup" },
+          "description": "Grupos de votantes."
         }
       }
-    ],
-    "reasoning": "The Firestore structure is designed to ensure authorization independence, clarity, and scalability, adhering to the principles of DBAC (Database-Based Access Control) and QAPs (Rules are not Filters).  It leverages denormalization to avoid `get()` calls in security rules, enabling atomic operations and simplifying debugging.\n\n**Authorization Independence:**\n\n*   `Polls`: The `adminId` field within each poll document directly associates the poll with its creator, eliminating the need to fetch admin data during authorization.\n*   `Voters`: The `pollId` and `adminId` fields within each voter document link the voter to a specific poll and its owner. This design enables efficient, secure collection group queries for the voter inbox feature and maintains authorization independence.\n*   `VoterGroups`: Are stored under the admin who created them, ensuring strict ownership and simple security rules.\n\n**Structural Segregation:**\n\n*   The database separates polls, voters, votes, and groups into distinct collections. This segregation allows for specific and straightforward security rules for each entity.\n\n**Access Modeling:**\n\n*   **Path-Based Ownership:** Polls and Groups are accessed via `/admins/{adminId}/...`, making ownership clear and security rules simple.\n*   **One-to-Many Relationship:** The structure reflects the one-to-many relationships between Admins and Polls, Admins and VoterGroups, Polls and Voters, and Polls and Votes through hierarchical paths.\n\n**QAPs Support:**\n\n*   The structure enables secure `list` operations because access control is enforced at the collection level (e.g., only the admin can list polls/groups under their ID).\n\n**Invariants:**\n\n*   The structure supports the integrity of ownership, timestamps, and denormalized data. For example, `adminId` maintains clear ownership."
+    ]
   }
 }
-
-    
