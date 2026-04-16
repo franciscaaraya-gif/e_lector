@@ -13,7 +13,7 @@ import { Poll, VoterStatus } from '@/lib/types';
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Info } from 'lucide-react';
 import InboxLoading from './loading';
 
 /**
@@ -93,7 +93,7 @@ function PollsInboxClient() {
     }, [voterId, salaId, router]);
 
     const isLoading = isDocsLoading || isAuthLoading;
-    const error = authError || (docsError ? 'Error al cargar votaciones. Asegúrate de que el ID sea correcto y que existan los índices necesarios en Firestore.' : '');
+    const error = authError || (docsError ? 'Error de conexión con la base de datos.' : '');
 
     if (isLoading) {
         return <InboxLoading />;
@@ -105,11 +105,21 @@ function PollsInboxClient() {
                 <CardHeader>
                     <CardTitle>Bandeja de Entrada</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>No se pudieron cargar las votaciones</AlertTitle>
                         <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                    
+                    <Alert className="bg-blue-50 border-blue-200">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <AlertTitle className="text-blue-800">Acción Requerida</AlertTitle>
+                        <AlertDescription className="text-blue-700 text-sm">
+                            Este error suele ocurrir por falta de un índice en la base de datos.
+                            <br /><br />
+                            <strong>Para solucionarlo:</strong> Abre la consola de tu navegador (F12), busca el error de Firebase y haz clic en la URL que aparece allí para crear el índice automáticamente en tu panel de control.
+                        </AlertDescription>
                     </Alert>
                 </CardContent>
                 <CardFooter>

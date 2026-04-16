@@ -55,7 +55,7 @@ service cloud.firestore {
 
     match /admins/{adminId} {
       allow get: if isSignedIn(); // Allow get for voters checking their admin's profile or polls
-      allow list: if false;
+      allow list: if isSignedIn() && isOwner(adminId);
       allow create: if isOwner(adminId) && request.resource.data.id == adminId;
       allow update: if isExistingOwner(adminId) && request.resource.data.id == resource.data.id;
       allow delete: if isExistingOwner(adminId);
