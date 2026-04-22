@@ -41,7 +41,6 @@ function VotePageClient() {
     const auth = useAuth();
     const { user, isUserLoading: isAuthLoading } = useUser();
 
-    // Anonymous sign-in effect
     useEffect(() => {
         if (!auth || isAuthLoading || user) return;
 
@@ -50,10 +49,8 @@ function VotePageClient() {
         });
     }, [auth, user, isAuthLoading]);
 
-    // Data fetching effect
     useEffect(() => {
         if (!voterId) {
-            // This case is handled by the initial check, but as a safeguard:
             setError("Falta el ID de votante.");
             setIsFetchingData(false);
             return;
@@ -67,13 +64,11 @@ function VotePageClient() {
             setIsFetchingData(true);
             setError('');
             try {
-                // Get adminId from public lookup
                 const lookupSnap = await getDoc(doc(firestore, 'poll-lookup', pollId));
                 if (!lookupSnap.exists()) throw new Error('Votación no encontrada o inválida.');
                 const adminId = (lookupSnap.data() as PollLookup).adminId;
                 setAdminId(adminId);
 
-                // Get Poll data
                 const pollSnap = await getDoc(doc(firestore, 'admins', adminId, 'polls', pollId));
                 if (!pollSnap.exists()) throw new Error('Votación no encontrada o inválida.');
                 
@@ -82,7 +77,6 @@ function VotePageClient() {
                 
                 setPoll(pollData);
 
-                // Get this specific voter's status document for this poll
                 const votersRef = collection(firestore, 'admins', adminId, 'polls', pollId, 'voters');
                 const q = query(votersRef, where('voterId', '==', voterId), limit(1));
                 const voterSnap = await getDocs(q);
@@ -92,12 +86,8 @@ function VotePageClient() {
                 const voterDoc = voterSnap.docs[0];
                 const voterStatusData = voterDoc.data() as VoterStatus;
 
-                // CHECK 1: Has the voter already voted?
                 if (voterStatusData.hasVoted) throw new Error('Ya has emitido tu voto para esta votación.');
                 
-                // CHECK 2: Is the voter enabled for this poll?
-                // The `enabled` field is denormalized into the voter document for this check.
-                // It defaults to true if not present for backwards compatibility.
                 if (voterStatusData.enabled === false) {
                     throw new Error('No tienes permitido votar en esta votación.');
                 }
@@ -114,7 +104,6 @@ function VotePageClient() {
         fetchPollData();
     }, [firestore, user, isAuthLoading, pollId, voterId]);
 
-    // Dynamic Zod schema based on poll type
     const formSchema = z.object({
         selectedOptions: poll?.pollType === 'simple'
             ? z.string({ required_error: "Debes seleccionar una opción." })
@@ -178,7 +167,6 @@ function VotePageClient() {
         </div>
     );
     
-    // Step 1: Handle missing voterId
     if (!voterId) {
         return pageLayout(
              <Card>
@@ -206,12 +194,10 @@ function VotePageClient() {
         );
     }
 
-    // Step 2: Handle loading state while fetching data
     if (isAuthLoading || isFetchingData) {
         return pageLayout(<LoadingSkeleton />);
     }
     
-    // Step 3: Handle errors
     if (error) {
         return pageLayout(
             <Card>
@@ -240,25 +226,23 @@ function VotePageClient() {
         );
     }
     
-    // Step 4: Handle case where poll data couldn't be fetched
     if (!poll) {
-        return pageLayout(<LoadingSkeleton />); // Or a more specific error
+        return pageLayout(<LoadingSkeleton />);
     }
 
-    // Step 5: Show the actual voting form
     return pageLayout(
-        <Card>
+        <Card className="shadow-lg border-2">
             <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)}>
-                    <CardHeader>
-                        <CardTitle className="text-2xl">{poll.question}</CardTitle>
-                        <CardDescription>
+                    <CardHeader className="text-center space-y-2">
+                        <CardTitle className="text-3xl font-headline text-primary">{poll.question}</CardTitle>
+                        <CardDescription className="text-base">
                             {poll.pollType === 'simple'
-                                ? 'Selecciona una opción.'
-                                : `Puedes seleccionar hasta ${poll.maxSelections} opciones.`}
+                                ? 'Selecciona una única opción de la lista.'
+                                : `Puedes seleccionar hasta ${poll.maxSelections} opciones de la lista.`}
                         </CardDescription>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="px-6">
                         <FormField
                             control={form.control}
                             name="selectedOptions"
@@ -266,19 +250,28 @@ function VotePageClient() {
                                 <FormItem>
                                     {poll.pollType === 'simple' ? (
                                         <FormControl>
-                                            <RadioGroup onValueChange={field.onChange} defaultValue={field.value as string} className="space-y-2">
+                                            <RadioGroup 
+                                                onValueChange={field.onChange} 
+                                                defaultValue={field.value as string} 
+                                                className="space-y-3"
+                                            >
                                                 {poll.options.map((option) => (
-                                                    <FormItem key={option.id} className="flex items-center space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent hover:text-accent-foreground has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground">
+                                                    <FormItem 
+                                                        key={option.id} 
+                                                        className="flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all hover:border-primary/50 cursor-pointer has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground has-[[data-state=checked]]:border-primary"
+                                                    >
                                                         <FormControl>
-                                                            <RadioGroupItem value={String(option.id)} />
+                                                            <RadioGroupItem value={String(option.id)} className="sr-only" />
                                                         </FormControl>
-                                                        <FormLabel className="font-normal flex-1 cursor-pointer">{option.text}</FormLabel>
+                                                        <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
+                                                            {option.text}
+                                                        </FormLabel>
                                                     </FormItem>
                                                 ))}
                                             </RadioGroup>
                                         </FormControl>
                                     ) : (
-                                        <div className="space-y-2">
+                                        <div className="space-y-3">
                                             {poll.options.map((option) => (
                                                 <FormField
                                                     key={option.id}
@@ -287,10 +280,11 @@ function VotePageClient() {
                                                     render={({ field }) => (
                                                         <FormItem
                                                             key={option.id}
-                                                            className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-4 hover:bg-accent hover:text-accent-foreground has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground"
+                                                            className="flex flex-row items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all hover:border-primary/50 cursor-pointer has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground has-[[data-state=checked]]:border-primary"
                                                         >
                                                             <FormControl>
                                                                 <Checkbox
+                                                                    className="sr-only"
                                                                     checked={Array.isArray(field.value) && field.value.includes(String(option.id))}
                                                                     onCheckedChange={(checked) => {
                                                                         const currentValue = (field.value ?? []) as string[];
@@ -300,22 +294,24 @@ function VotePageClient() {
                                                                     }}
                                                                 />
                                                             </FormControl>
-                                                            <FormLabel className="font-normal flex-1 cursor-pointer">{option.text}</FormLabel>
+                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
+                                                                {option.text}
+                                                            </FormLabel>
                                                         </FormItem>
                                                     )}
                                                 />
                                             ))}
                                         </div>
                                     )}
-                                    <FormMessage className="pt-2" />
+                                    <FormMessage className="pt-4 text-center text-base" />
                                 </FormItem>
                             )}
-                        />
+                        </FormField>
                     </CardContent>
-                    <CardFooter>
-                        <Button type="submit" disabled={isSubmitting} className="w-full">
-                            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Emitir Voto
+                    <CardFooter className="pt-4 px-6 pb-8">
+                        <Button type="submit" disabled={isSubmitting} className="w-full h-14 text-xl font-bold rounded-xl shadow-md">
+                            {isSubmitting && <Loader2 className="mr-2 h-6 w-6 animate-spin" />}
+                            Confirmar y Enviar Voto
                         </Button>
                     </CardFooter>
                 </form>
