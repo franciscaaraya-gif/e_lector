@@ -23,11 +23,11 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download, CheckCircle2, XCircle, Search } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "../ui/button";
 import * as XLSX from 'xlsx';
-
+import { Badge } from "../ui/badge";
 
 interface PollResultsDialogProps {
   poll: Poll;
@@ -92,11 +92,11 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
     }, [votes, poll.options]);
 
     const handleDownloadExcel = () => {
-        if (!stats) return;
+        if (!stats || !votersStatus) return;
 
         const wb = XLSX.utils.book_new();
         
-        // 1. Datos del Informe General
+        // 1. Hoja de Informe General
         const reportInfo = [
             ["INFORME DE VOTACIÓN E-LECTOR"],
             [""],
@@ -120,12 +120,24 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             reportInfo.push([item.name, item.votes.toString(), `${item.percentage.toFixed(1)}%`]);
         });
 
-        const ws = XLSX.utils.aoa_to_sheet(reportInfo);
-        
-        // Estilos básicos de ancho de columna
-        ws['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 15 }];
+        const wsReport = XLSX.utils.aoa_to_sheet(reportInfo);
+        wsReport['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, wsReport, "Informe de Resultados");
 
-        XLSX.utils.book_append_sheet(wb, ws, "Informe");
+        // 2. Hoja de Detalle de Votantes
+        const voterHeaders = [["ID Votante", "Nombres", "Apellidos", "Estado Habilitación", "Emitió Voto"]];
+        const voterData = votersStatus.map(v => [
+            v.voterId,
+            v.nombre || '',
+            v.apellido || '',
+            v.enabled !== false ? 'Habilitado' : 'Deshabilitado',
+            v.hasVoted ? 'SÍ' : 'NO'
+        ]);
+
+        const wsVoters = XLSX.utils.aoa_to_sheet([...voterHeaders, ...voterData]);
+        wsVoters['!cols'] = [{ wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 15 }];
+        XLSX.utils.book_append_sheet(wb, wsVoters, "Lista de Votantes");
+
         XLSX.writeFile(wb, `Informe_Votacion_${poll.id}.xlsx`);
     };
 
@@ -138,7 +150,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
+            <DialogContent className="sm:max-w-3xl max-h-[95dvh] overflow-y-auto">
                 <DialogHeader className="flex flex-row items-start justify-between gap-4 pr-8">
                     <div className="space-y-1">
                         <DialogTitle className="text-xl">Informe de Votación</DialogTitle>
@@ -147,7 +159,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                         </DialogDescription>
                     </div>
                     <Button onClick={handleDownloadExcel} variant="outline" size="sm" className="shrink-0" disabled={isLoading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar
+                        <Download className="mr-2 h-4 w-4" /> Exportar a Excel
                     </Button>
                 </DialogHeader>
 
@@ -195,7 +207,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             <div className="text-center border rounded-lg p-3 bg-primary/5 border-primary/20">
                                 <div className="flex justify-center mb-1"><VoteIcon className="h-4 w-4 text-primary" /></div>
                                 <div className="text-xl font-bold text-primary">{stats.cast}</div>
-                                <div className="text-[10px] text-primary uppercase">Emitidos ({stats.participation.toFixed(1)}%)</div>
+                                <div className="text-[10px] text-primary uppercase">Votaron ({stats.participation.toFixed(1)}%)</div>
                             </div>
                         </div>
                     )}
@@ -267,10 +279,63 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             </TableBody>
                         </Table>
                     </div>
+
+                    <Separator />
+
+                    {/* Detalle de Participantes */}
+                    <div>
+                        <h4 className="font-semibold text-sm mb-4 flex items-center gap-2">
+                            <Users className="h-4 w-4" /> Detalle de Participación Individual
+                        </h4>
+                        <div className="border rounded-md">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow className="bg-muted/50">
+                                        <TableHead className="text-xs">Votante</TableHead>
+                                        <TableHead className="text-xs">Estado</TableHead>
+                                        <TableHead className="text-right text-xs">¿Votó?</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {votersStatus?.map((voter) => (
+                                        <TableRow key={voter.id}>
+                                            <TableCell className="py-2">
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-medium">{voter.nombre} {voter.apellido}</span>
+                                                    <span className="text-[10px] text-muted-foreground font-mono">{voter.voterId}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="py-2">
+                                                {voter.enabled !== false ? (
+                                                    <Badge variant="outline" className="text-[10px] py-0 border-green-200 text-green-700 bg-green-50">Habilitado</Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-[10px] py-0 border-red-200 text-red-700 bg-red-50">No Hab.</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell className="text-right py-2">
+                                                {voter.hasVoted ? (
+                                                    <div className="flex justify-end"><CheckCircle2 className="h-4 w-4 text-green-500" /></div>
+                                                ) : (
+                                                    <div className="flex justify-end"><XCircle className="h-4 w-4 text-muted-foreground/30" /></div>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {(!votersStatus || votersStatus.length === 0) && (
+                                        <TableRow>
+                                            <TableCell colSpan={3} className="text-center py-4 text-muted-foreground text-sm italic">
+                                                No hay registros de votantes disponibles.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
                 </div>
                 
                 <div className="text-center text-[10px] text-muted-foreground border-t pt-4">
-                    Este informe fue generado automáticamente por E-lector. Todos los votos son anónimos.
+                    Este informe fue generado automáticamente por E-lector. Todos los votos individuales son anónimos, el sistema solo registra quién participó.
                 </div>
             </DialogContent>
         </Dialog>
