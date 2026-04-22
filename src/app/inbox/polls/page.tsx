@@ -1,4 +1,3 @@
-
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +12,7 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Info, HelpCircle } from 'lucide-react';
+import { AlertCircle, Info, HelpCircle, ExternalLink } from 'lucide-react';
 import InboxLoading from './loading';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
@@ -75,7 +74,6 @@ function PollsInboxClient() {
 
     const votersQuery = useMemoFirebase(() => {
         if (!firestore || !voterId || !salaId || !user) return null;
-        // Agregamos el filtro enabled == true para que no vea la encuesta si está deshabilitado
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
@@ -98,6 +96,9 @@ function PollsInboxClient() {
     if (isLoading) {
         return <InboxLoading />;
     }
+
+    // Extraer link de índice si existe en el error
+    const indexLink = docsError?.message?.match(/https:\/\/console\.firebase\.google\.com[^\s]*/)?.[0];
     
     return (
         <div className="w-full space-y-6">
@@ -131,7 +132,7 @@ function PollsInboxClient() {
                 </div>
             )}
 
-            {/* Ayuda técnica discreta para el administrador */}
+            {/* Ayuda técnica para el administrador */}
             {docsError && (
                 <div className="pt-8 text-center">
                     <Button 
@@ -140,16 +141,29 @@ function PollsInboxClient() {
                         className="text-muted-foreground text-[10px]" 
                         onClick={() => setShowDebug(!showDebug)}
                     >
-                        <HelpCircle className="h-3 w-3 mr-1" /> Ayuda técnica (Admin)
+                        <HelpCircle className="h-3 w-3 mr-1" /> Ayuda técnica (Configuración)
                     </Button>
                     
                     {showDebug && (
                         <Alert variant="destructive" className="mt-4 text-left">
                             <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Error de Configuración Detectado</AlertTitle>
-                            <AlertDescription className="text-xs space-y-2">
-                                <p>La bandeja de entrada no puede consultar los datos. Esto suele deberse a que falta un <b>Índice Compuesto</b> en Firebase para la colección <i>voters</i>.</p>
-                                <p><b>Cómo solucionarlo:</b> Abre la consola del navegador (F12), busca un error rojo de Firebase y haz clic en el enlace azul que aparece allí para crear el índice automáticamente.</p>
+                            <AlertTitle>Falta Configuración de Base de Datos</AlertTitle>
+                            <AlertDescription className="text-xs space-y-4">
+                                <p>Para que la bandeja de entrada funcione, Firebase necesita crear un <strong>Índice Compuesto</strong>.</p>
+                                
+                                {indexLink ? (
+                                    <div className="space-y-2">
+                                        <p className="font-bold">Haz clic en el siguiente botón para crearlo automáticamente:</p>
+                                        <Button asChild variant="secondary" size="sm" className="w-full">
+                                            <a href={indexLink} target="_blank" rel="noopener noreferrer">
+                                                <ExternalLink className="mr-2 h-4 w-4" /> Crear Índice Ahora
+                                            </a>
+                                        </Button>
+                                        <p className="text-[10px] opacity-70 italic">Nota: Una vez que hagas clic, tardará unos 3-5 minutos en activarse.</p>
+                                    </div>
+                                ) : (
+                                    <p>Abre la consola del navegador (F12) para encontrar el enlace de creación automática de Firebase.</p>
+                                )}
                             </AlertDescription>
                         </Alert>
                     )}
