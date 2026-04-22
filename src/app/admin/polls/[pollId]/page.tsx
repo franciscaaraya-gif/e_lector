@@ -70,8 +70,9 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
         if (votersStatus) {
             const merged = votersStatus.map(v => ({
                 id: v.voterId,
-                nombre: v.nombre || 'Votante',
-                apellido: v.apellido || 'Desconocido',
+                // Fallback: Si no tiene nombre (data antigua), mostrar el ID
+                nombre: v.nombre || v.voterId,
+                apellido: v.apellido || '',
                 hasVoted: v.hasVoted,
                 statusDocId: v.id,
                 enabled: v.enabled !== false,
@@ -154,7 +155,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre</TableHead>
+                  <TableHead>Nombre / ID</TableHead>
                   <TableHead>Estado de Acceso</TableHead>
                   <TableHead>¿Votó?</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -165,8 +166,8 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
                   <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
                     <TableCell className="font-medium">
                         <div className='flex flex-col'>
-                            <span>{voter.nombre} {voter.apellido}</span>
-                            <span className='text-[10px] text-muted-foreground font-mono'>{voter.id}</span>
+                            <span className="font-semibold">{voter.nombre} {voter.apellido}</span>
+                            <span className='text-[10px] text-muted-foreground font-mono uppercase'>{voter.id}</span>
                         </div>
                     </TableCell>
                     <TableCell>
@@ -302,8 +303,8 @@ export default function PollDetailsPage() {
                 hasVoted: false,
                 adminId: user.uid,
                 enabled: true,
-                nombre: voter.nombre,
-                apellido: voter.apellido
+                nombre: voter.nombre || '',
+                apellido: voter.apellido || ''
             });
         });
 
