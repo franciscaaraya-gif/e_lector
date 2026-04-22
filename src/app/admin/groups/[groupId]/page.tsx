@@ -13,7 +13,8 @@ import {
   Loader2, 
   AlertCircle,
   Users,
-  Save
+  Save,
+  Check
 } from 'lucide-react';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -29,6 +30,7 @@ import { useToast } from '@/hooks/use-toast';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import GroupDetailsLoading from './loading';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
@@ -58,14 +60,16 @@ export default function GroupDetailsPage() {
 
   const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
 
-  // Search logic for UI preview
-  const foundVoterInList = useMemo(() => {
-    if (!searchId.trim() || !personnel) return null;
+  // Search logic for UI preview (multi-match)
+  const searchResults = useMemo(() => {
+    if (!searchId.trim() || !personnel || searchId.trim().length < 2) return [];
     const search = searchId.trim().toLowerCase();
-    return personnel.find(p => 
-      (p.regGeneral && String(p.regGeneral).toLowerCase() === search) || 
-      p.id.toLowerCase() === search
-    );
+    
+    return personnel.filter(p => 
+      (p.regGeneral && String(p.regGeneral).toLowerCase().includes(search)) || 
+      p.id.toLowerCase().includes(search) ||
+      `${p.nombres} ${p.apellidos}`.toLowerCase().includes(search)
+    ).slice(0, 5); // Limit to 5 results for the picker
   }, [searchId, personnel]);
 
   const addVoterToGroup = async (voter: VoterInfo) => {
@@ -100,25 +104,28 @@ export default function GroupDetailsPage() {
       const value = e.currentTarget.value.trim().toLowerCase();
       if (!value || !personnel) return;
 
-      const found = personnel.find(p => 
+      // Try exact ID match first
+      const exactMatch = personnel.find(p => 
         (p.regGeneral && String(p.regGeneral).toLowerCase() === value) || 
         p.id.toLowerCase() === value
       );
 
-      if (found) {
+      if (exactMatch) {
+        addVoterToGroup({
+          id: exactMatch.regGeneral || exactMatch.id,
+          nombre: exactMatch.nombres,
+          apellido: exactMatch.apellidos,
+          enabled: true
+        });
+      } else if (searchResults.length === 1) {
+        // If there's only one search result (by name or partial ID), add it on Enter
+        const found = searchResults[0];
         addVoterToGroup({
           id: found.regGeneral || found.id,
           nombre: found.nombres,
           apellido: found.apellidos,
           enabled: true
         });
-      } else {
-        toast({
-          variant: 'destructive',
-          title: 'No encontrado',
-          description: `No se encontró personal con el ID: ${value}`
-        });
-        setSearchId('');
       }
     }
   };
@@ -149,7 +156,6 @@ export default function GroupDetailsPage() {
       return;
     }
 
-    // Generate unique external ID
     const randomDigits = Math.floor(10000 + Math.random() * 90000).toString();
     const newId = `EXT-${randomDigits}`;
 
@@ -200,45 +206,51 @@ export default function GroupDetailsPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Fingerprint className="h-5 w-5 text-primary" />
-                Escanear RFID / ID
+                <Search className="h-5 w-5 text-primary" />
+                Buscar Miembros
               </CardTitle>
-              <CardDescription>Pasa la tarjeta por el lector o escribe el ID y presiona Enter.</CardDescription>
+              <CardDescription>Busca por nombre o escanea la tarjeta de identificación.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Escaneando..." 
-                  className="pl-9 bg-primary/5 focus:bg-background transition-colors"
+                  placeholder="Nombre o ID de registro..." 
+                  className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
                   onKeyDown={handleKeyDown}
                   autoFocus
                 />
               </div>
-              {foundVoterInList && (
-                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <Alert className="bg-primary/5 border-primary/20">
-                    <AlertDescription className="text-sm">
-                      <p className="font-bold">{foundVoterInList.nombres} {foundVoterInList.apellidos}</p>
-                      <p className="text-xs text-muted-foreground">{foundVoterInList.tipo}</p>
-                    </AlertDescription>
-                  </Alert>
-                  <Button 
-                    variant="secondary"
-                    className="w-full" 
-                    onClick={() => addVoterToGroup({
-                      id: foundVoterInList.regGeneral || foundVoterInList.id,
-                      nombre: foundVoterInList.nombres,
-                      apellido: foundVoterInList.apellidos,
-                      enabled: true
-                    })}
-                    disabled={isUpdating}
-                  >
-                    Agregar Manualmente
-                  </Button>
+              
+              {searchResults.length > 0 && (
+                <div className="border rounded-md divide-y overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                   <ScrollArea className={searchResults.length > 3 ? "h-64" : "h-auto"}>
+                    {searchResults.map((voter) => (
+                        <button
+                          key={voter.id}
+                          className="w-full p-3 text-left hover:bg-muted flex items-center justify-between group transition-colors"
+                          onClick={() => addVoterToGroup({
+                            id: voter.regGeneral || voter.id,
+                            nombre: voter.nombres,
+                            apellido: voter.apellidos,
+                            enabled: true
+                          })}
+                          disabled={isUpdating}
+                        >
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm truncate">{voter.nombres} {voter.apellidos}</p>
+                            <p className="text-[10px] text-muted-foreground font-mono truncate">{voter.regGeneral || voter.id} | {voter.tipo}</p>
+                          </div>
+                          <Check className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                    ))}
+                   </ScrollArea>
                 </div>
+              )}
+
+              {searchId.trim().length >= 2 && searchResults.length === 0 && (
+                  <p className="text-xs text-center text-muted-foreground italic">No se encontraron coincidencias.</p>
               )}
             </CardContent>
           </Card>
@@ -301,7 +313,7 @@ export default function GroupDetailsPage() {
                     {group.voters.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={3} className="h-32 text-center text-muted-foreground italic">
-                          No hay personas enroladas aún.<br />Usa el panel lateral para agregar miembros.
+                          No hay personas enroladas aún.<br />Usa el panel lateral para buscar y agregar miembros.
                         </TableCell>
                       </TableRow>
                     ) : (
