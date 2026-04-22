@@ -79,26 +79,26 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   const isLoginPage = pathname === "/admin/login";
+  // Un administrador auténtico es aquel que está logueado Y NO es anónimo
+  const isAuthenticatedAdmin = user && !user.isAnonymous;
 
   useEffect(() => {
     if (loading) {
-      return; // Still loading, do nothing.
+      return; 
     }
 
-    // Auth state is resolved. Now, check for redirects.
-    if (!user && !isLoginPage) {
+    // Si no es un administrador autenticado y no está en la página de login, redirigir a login
+    if (!isAuthenticatedAdmin && !isLoginPage) {
       router.replace("/admin/login");
     }
-    if (user && isLoginPage) {
+    // Si ya es un administrador autenticado y está en la página de login, ir al dashboard
+    if (isAuthenticatedAdmin && isLoginPage) {
       router.replace("/admin/dashboard");
     }
-  }, [user, loading, pathname, router]);
+  }, [isAuthenticatedAdmin, loading, isLoginPage, router]);
 
   useEffect(() => {
-    // This is the forceful workaround for the Radix UI bug where overlays
-    // get "stuck" and block pointer events. This effect ensures that any
-    // orphaned Radix portal elements are removed from the DOM on every
-    // route change within the admin panel, preventing a UI freeze.
+    // Solución para el bug de Radix UI donde los overlays se quedan "pegados"
     const cleanup = () => {
       document
         .querySelectorAll('[data-radix-portal]')
@@ -108,22 +108,21 @@ export default function AdminLayout({
     cleanup();
 
     return cleanup;
-  }, [pathname]); // Re-run this effect on every navigation to clean up potential zombie overlays.
+  }, [pathname]);
 
-  // 1. If we are on the login page, render it.
-  // The useEffect will handle redirecting away if the user is already logged in.
+  // 1. Si estamos en la página de login, renderizarla siempre.
+  // El useEffect se encargará de sacarnos de aquí si ya somos administradores.
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  // 2. If we are on a protected page, we MUST wait for the user to be loaded and present.
-  // While loading, or if there's no user (and a redirect is pending), show a full-screen skeleton.
-  if (loading || !user) {
-    // We pass a generic skeleton as children, NOT the actual page content.
+  // 2. Si estamos en una página protegida, debemos esperar a que el usuario sea un administrador real.
+  // Mientras carga, o si el usuario es anónimo/inexistente, mostrar skeleton.
+  if (loading || !isAuthenticatedAdmin) {
     return <FullScreenSkeleton><GenericContentSkeleton /></FullScreenSkeleton>;
   }
 
-  // 3. If we reach here, user is loaded and we are on a protected page. Render the full layout.
+  // 3. Renderizar el layout completo solo para administradores autenticados (no anónimos)
   return (
     <SidebarProvider>
         <AdminSidebar />
@@ -134,7 +133,7 @@ export default function AdminLayout({
                     <ElectorIcon className="h-6 w-6 text-primary" />
                     <span className="font-headline">E-lector</span>
                 </Link>
-                <div className="w-7" /> {/* Spacer to balance the trigger button */}
+                <div className="w-7" />
             </header>
             <main className="flex-1 p-4 sm:p-6">
                 {children}
