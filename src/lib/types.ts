@@ -59,6 +59,8 @@ export type VoterStatus = {
   hasVoted: boolean;
   adminId: string;
   enabled?: boolean;
+  nombre?: string; // Denormalized name for snapshot
+  apellido?: string; // Denormalized last name for snapshot
 };
 
 export type PollLookup = {

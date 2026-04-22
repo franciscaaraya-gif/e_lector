@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -50,29 +51,34 @@ const statusText: { [key: string]: string } = {
   closed: 'Cerrada',
 };
 
-type MergedVoter = VoterInfo & { hasVoted: boolean; statusDocId: string; enabled: boolean };
+type MergedVoter = {
+    id: string;
+    nombre: string;
+    apellido: string;
+    hasVoted: boolean;
+    statusDocId: string;
+    enabled: boolean;
+};
 
-function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGroup, votersStatus: VoterStatus[] }) {
+function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStatus[] }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
     const [mergedVoters, setMergedVoters] = useState<MergedVoter[]>([]);
 
     useEffect(() => {
-        if (group?.voters && votersStatus) {
-            const voterStatusMap = new Map(votersStatus.map(v => [v.voterId, { hasVoted: v.hasVoted, docId: v.id, enabled: v.enabled !== false }]));
-            const merged = group.voters.map(voterInfo => {
-                const status = voterStatusMap.get(voterInfo.id);
-                return {
-                    ...voterInfo,
-                    hasVoted: status?.hasVoted ?? false,
-                    statusDocId: status?.docId ?? '',
-                    enabled: status?.enabled ?? true,
-                };
-            });
+        if (votersStatus) {
+            const merged = votersStatus.map(v => ({
+                id: v.voterId,
+                nombre: v.nombre || 'Votante',
+                apellido: v.apellido || 'Desconocido',
+                hasVoted: v.hasVoted,
+                statusDocId: v.id,
+                enabled: v.enabled !== false,
+            }));
             setMergedVoters(merged);
         }
-    }, [group, votersStatus]);
+    }, [votersStatus]);
 
     const stats = useMemo(() => {
         const total = mergedVoters.length;
@@ -107,11 +113,13 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
         }
     };
 
-    if (!group || !votersStatus || votersStatus.length === 0) return (
+    if (!votersStatus || (poll.status === 'pending' && !poll.groupId)) return null;
+
+    if (votersStatus.length === 0) return (
         <Card>
             <CardHeader>
                 <CardTitle className="text-lg">Registro de Votantes</CardTitle>
-                <CardDescription>Cargando lista de participantes...</CardDescription>
+                <CardDescription>No hay votantes asignados a esta encuesta.</CardDescription>
             </CardHeader>
         </Card>
     );
@@ -125,7 +133,7 @@ function VoterList({ poll, group, votersStatus }: { poll: Poll, group: VoterGrou
                 <CardDescription>
                     {poll.status === 'pending' 
                         ? 'Habilita o deshabilita votantes antes de activar la votación.' 
-                        : `Votantes oficiales para "${group.name}". El acceso individual está bloqueado.`}
+                        : `Lista oficial de votantes para este proceso.`}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -247,13 +255,6 @@ export default function PollDetailsPage() {
   
   const { data: poll, isLoading: pollLoading, error: pollError } = useDoc<Poll>(pollRef);
 
-  const groupRef = useMemoFirebase(() => {
-    if (!firestore || !user || !poll?.groupId) return null;
-    return doc(firestore, 'admins', user.uid, 'groups', poll.groupId);
-  }, [firestore, user, poll]);
-  
-  const { data: group, isLoading: groupLoading } = useDoc<VoterGroup>(groupRef);
-
   const votersStatusRef = useMemoFirebase(() => {
     if (!firestore || !user || !pollId) return null;
     return collection(firestore, 'admins', user.uid, 'polls', pollId, 'voters');
@@ -292,7 +293,7 @@ export default function PollDetailsPage() {
         const existingVotersSnap = await getDocs(votersCollRef);
         existingVotersSnap.forEach(vdoc => batch.delete(vdoc.ref));
 
-        // 3. Crear registros iniciales de votantes (todos habilitados por defecto)
+        // 3. Crear registros iniciales de votantes (Snapshot: incluyo nombre y apellido)
         selectedGroup.voters.forEach(voter => {
             const vRef = doc(votersCollRef);
             batch.set(vRef, {
@@ -300,7 +301,9 @@ export default function PollDetailsPage() {
                 pollId: poll.id,
                 hasVoted: false,
                 adminId: user.uid,
-                enabled: true
+                enabled: true,
+                nombre: voter.nombre,
+                apellido: voter.apellido
             });
         });
 
@@ -321,7 +324,7 @@ export default function PollDetailsPage() {
           const pollRef = doc(firestore, 'admins', user.uid, 'polls', poll.id);
           await updateDoc(pollRef, { 
               status: 'active',
-              activatedAt: serverTimestamp() // Registramos hora de inicio
+              activatedAt: serverTimestamp() 
           });
           toast({ title: "Votación Activada", description: "La votación ya es pública para los votantes habilitados." });
       } catch (error) {
@@ -337,7 +340,7 @@ export default function PollDetailsPage() {
     try {
         await updateDoc(pollRef, { 
             status: 'closed',
-            closedAt: serverTimestamp() // Registramos hora de término
+            closedAt: serverTimestamp() 
         });
         toast({ title: "Votación Cerrada" });
     } catch (error) {
@@ -347,7 +350,7 @@ export default function PollDetailsPage() {
     }
   }
 
-  if (isUserLoading || pollLoading || groupLoading || votersStatusLoading || allGroupsLoading) {
+  if (isUserLoading || pollLoading || votersStatusLoading || allGroupsLoading) {
     return <PollDetailsLoading />;
   }
 
@@ -470,8 +473,8 @@ export default function PollDetailsPage() {
           </div>
       )}
       
-      {poll.groupId && group && votersStatus && (
-          <VoterList poll={poll} group={group} votersStatus={votersStatus} />
+      {votersStatus && (
+          <VoterList poll={poll} votersStatus={votersStatus} />
       )}
       
       <PollResultsDialog poll={poll} open={showResults} onOpenChange={setShowResults} />
