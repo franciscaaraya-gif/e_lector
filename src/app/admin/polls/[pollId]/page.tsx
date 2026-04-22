@@ -408,9 +408,11 @@ export default function PollDetailsPage() {
                         <Button onClick={() => { navigator.clipboard.writeText(pollUrl); toast({ title: 'Copiado' }); }}>
                             <LinkIcon className="mr-2 h-4 w-4" /> Copiar Enlace
                         </Button>
-                        <Button onClick={() => setShowResults(true)} variant="secondary">
-                            Resultados e Informe
-                        </Button>
+                        {poll.status === 'closed' && (
+                          <Button onClick={() => setShowResults(true)} variant="secondary">
+                              Resultados e Informe
+                          </Button>
+                        )}
                     </div>
                 </div>
             )}

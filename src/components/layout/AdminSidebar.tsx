@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { BarChart2, ListChecks, LogOut, Settings, Users, UserCircle } from 'lucide-react';
+import { BarChart2, LogOut, Settings, Users, UserCircle } from 'lucide-react';
 import { useAuth, useUser } from '@/firebase';
 import { signOut } from 'firebase/auth';
 
@@ -64,14 +64,6 @@ export function AdminSidebar() {
               <Link href="/admin/groups">
                 <Users />
                 <span>Grupos</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="App de Listas">
-              <Link href="https://studio-2564557381-68586.web.app/" target="_blank" rel="noopener noreferrer">
-                <ListChecks />
-                <span>App de Listas</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

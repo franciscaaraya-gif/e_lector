@@ -1,10 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm, useFieldArray, ControllerRenderProps } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { addDoc, collection, serverTimestamp, doc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, query, where, writeBatch } from 'firebase/firestore';
 import { PlusCircle, Loader2, Trash2, Plus, GripVertical } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
@@ -138,7 +138,7 @@ export function CreatePollDialog() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       question: '',
-      options: [{ text: '' }, { text: '' }],
+      options: [{ text: '' }, { text: 'Blanco' }, { text: 'Nulo' }],
       pollType: 'simple',
     },
   });
@@ -177,7 +177,7 @@ export function CreatePollDialog() {
   const resetDialog = () => {
     form.reset({
         question: '',
-        options: [{ text: '' }, { text: '' }],
+        options: [{ text: '' }, { text: 'Blanco' }, { text: 'Nulo' }],
         pollType: 'simple',
     });
     setIsLoading(false);
