@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { cn } from '@/lib/utils';
 
 function VotePageClient() {
     const { pollId } = useParams() as { pollId: string };
@@ -248,65 +249,64 @@ function VotePageClient() {
                             name="selectedOptions"
                             render={({ field }) => (
                                 <FormItem>
-                                    {poll.pollType === 'simple' ? (
-                                        <FormControl>
-                                            <RadioGroup 
-                                                onValueChange={field.onChange} 
-                                                defaultValue={field.value as string} 
-                                                className="space-y-3"
-                                            >
-                                                {poll.options.map((option) => (
-                                                    <FormItem 
-                                                        key={option.id} 
-                                                        className="flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all hover:border-primary/50 cursor-pointer has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground has-[[data-state=checked]]:border-primary"
-                                                    >
-                                                        <FormControl>
-                                                            <RadioGroupItem value={String(option.id)} className="sr-only" />
-                                                        </FormControl>
-                                                        <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
-                                                            {option.text}
-                                                        </FormLabel>
-                                                    </FormItem>
-                                                ))}
-                                            </RadioGroup>
-                                        </FormControl>
-                                    ) : (
-                                        <div className="space-y-3">
-                                            {poll.options.map((option) => (
-                                                <FormField
-                                                    key={option.id}
-                                                    control={form.control}
-                                                    name="selectedOptions"
-                                                    render={({ field }) => (
-                                                        <FormItem
-                                                            key={option.id}
-                                                            className="flex flex-row items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all hover:border-primary/50 cursor-pointer has-[[data-state=checked]]:bg-primary has-[[data-state=checked]]:text-primary-foreground has-[[data-state=checked]]:border-primary"
-                                                        >
-                                                            <FormControl>
-                                                                <Checkbox
-                                                                    className="sr-only"
-                                                                    checked={Array.isArray(field.value) && field.value.includes(String(option.id))}
-                                                                    onCheckedChange={(checked) => {
-                                                                        const currentValue = (field.value ?? []) as string[];
-                                                                        return checked
-                                                                            ? field.onChange([...currentValue, String(option.id)])
-                                                                            : field.onChange(currentValue.filter((value) => value !== String(option.id)));
-                                                                    }}
-                                                                />
-                                                            </FormControl>
-                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
-                                                                {option.text}
-                                                            </FormLabel>
-                                                        </FormItem>
+                                    <div className="space-y-3">
+                                        {poll.options.map((option) => {
+                                            const isSelected = poll.pollType === 'simple' 
+                                                ? field.value === String(option.id)
+                                                : Array.isArray(field.value) && field.value.includes(String(option.id));
+
+                                            return (
+                                                <FormItem 
+                                                    key={option.id} 
+                                                    className={cn(
+                                                        "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
+                                                        isSelected 
+                                                            ? "bg-primary text-primary-foreground border-primary shadow-md" 
+                                                            : "bg-background border-input hover:border-primary/30"
                                                     )}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
+                                                    onClick={() => {
+                                                        if (poll.pollType === 'simple') {
+                                                            field.onChange(String(option.id));
+                                                        } else {
+                                                            const current = (field.value || []) as string[];
+                                                            const isChecked = current.includes(String(option.id));
+                                                            const next = isChecked 
+                                                                ? current.filter(v => v !== String(option.id))
+                                                                : [...current, String(option.id)];
+                                                            
+                                                            if (!isChecked && poll.maxSelections && next.length > poll.maxSelections) {
+                                                                return;
+                                                            }
+                                                            field.onChange(next);
+                                                        }
+                                                    }}
+                                                >
+                                                    <FormControl>
+                                                        {poll.pollType === 'simple' ? (
+                                                            <RadioGroupItem 
+                                                                value={String(option.id)} 
+                                                                className="sr-only" 
+                                                                checked={isSelected}
+                                                            />
+                                                        ) : (
+                                                            <Checkbox 
+                                                                className="sr-only"
+                                                                checked={isSelected}
+                                                                onCheckedChange={() => {}} // Handleado por el onClick del FormItem
+                                                            />
+                                                        )}
+                                                    </FormControl>
+                                                    <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
+                                                        {option.text}
+                                                    </FormLabel>
+                                                </FormItem>
+                                            );
+                                        })}
+                                    </div>
                                     <FormMessage className="pt-4 text-center text-base" />
                                 </FormItem>
                             )}
-                        </FormField>
+                        />
                     </CardContent>
                     <CardFooter className="pt-4 px-6 pb-8">
                         <Button type="submit" disabled={isSubmitting} className="w-full h-14 text-xl font-bold rounded-xl shadow-md">
