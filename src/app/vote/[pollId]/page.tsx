@@ -249,60 +249,83 @@ function VotePageClient() {
                             name="selectedOptions"
                             render={({ field }) => (
                                 <FormItem>
-                                    <div className="space-y-3">
-                                        {poll.options.map((option) => {
-                                            const isSelected = poll.pollType === 'simple' 
-                                                ? field.value === String(option.id)
-                                                : Array.isArray(field.value) && field.value.includes(String(option.id));
-
-                                            return (
-                                                <FormItem 
-                                                    key={option.id} 
-                                                    className={cn(
-                                                        "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
-                                                        isSelected 
-                                                            ? "bg-primary text-primary-foreground border-primary shadow-md" 
-                                                            : "bg-background border-input hover:border-primary/30"
-                                                    )}
-                                                    onClick={() => {
-                                                        if (poll.pollType === 'simple') {
-                                                            field.onChange(String(option.id));
-                                                        } else {
-                                                            const current = (field.value || []) as string[];
-                                                            const isChecked = current.includes(String(option.id));
-                                                            const next = isChecked 
-                                                                ? current.filter(v => v !== String(option.id))
-                                                                : [...current, String(option.id)];
-                                                            
-                                                            if (!isChecked && poll.maxSelections && next.length > poll.maxSelections) {
-                                                                return;
-                                                            }
-                                                            field.onChange(next);
+                                    <FormControl>
+                                        {poll.pollType === 'simple' ? (
+                                            <RadioGroup 
+                                                onValueChange={field.onChange} 
+                                                value={field.value as string}
+                                                className="space-y-3"
+                                            >
+                                                {poll.options.map((option) => {
+                                                    const isSelected = field.value === String(option.id);
+                                                    return (
+                                                        <FormItem 
+                                                            key={option.id} 
+                                                            className={cn(
+                                                                "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
+                                                                isSelected 
+                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md" 
+                                                                    : "bg-background border-input hover:border-primary/30"
+                                                            )}
+                                                            onClick={() => field.onChange(String(option.id))}
+                                                        >
+                                                            <FormControl>
+                                                                <RadioGroupItem 
+                                                                    value={String(option.id)} 
+                                                                    className="sr-only" 
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
+                                                                {option.text}
+                                                            </FormLabel>
+                                                        </FormItem>
+                                                    );
+                                                })}
+                                            </RadioGroup>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {poll.options.map((option) => {
+                                                    const currentValues = (field.value || []) as string[];
+                                                    const isSelected = currentValues.includes(String(option.id));
+                                                    
+                                                    const handleToggle = () => {
+                                                        const next = isSelected 
+                                                            ? currentValues.filter(v => v !== String(option.id))
+                                                            : [...currentValues, String(option.id)];
+                                                        
+                                                        if (!isSelected && poll.maxSelections && next.length > poll.maxSelections) {
+                                                            return;
                                                         }
-                                                    }}
-                                                >
-                                                    <FormControl>
-                                                        {poll.pollType === 'simple' ? (
-                                                            <RadioGroupItem 
-                                                                value={String(option.id)} 
-                                                                className="sr-only" 
-                                                                checked={isSelected}
-                                                            />
-                                                        ) : (
-                                                            <Checkbox 
-                                                                className="sr-only"
-                                                                checked={isSelected}
-                                                                onCheckedChange={() => {}} // Handleado por el onClick del FormItem
-                                                            />
-                                                        )}
-                                                    </FormControl>
-                                                    <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
-                                                        {option.text}
-                                                    </FormLabel>
-                                                </FormItem>
-                                            );
-                                        })}
-                                    </div>
+                                                        field.onChange(next);
+                                                    };
+
+                                                    return (
+                                                        <FormItem 
+                                                            key={option.id} 
+                                                            className={cn(
+                                                                "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
+                                                                isSelected 
+                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md" 
+                                                                    : "bg-background border-input hover:border-primary/30"
+                                                            )}
+                                                            onClick={handleToggle}
+                                                        >
+                                                            <FormControl>
+                                                                <Checkbox 
+                                                                    className="sr-only"
+                                                                    checked={isSelected}
+                                                                    onCheckedChange={() => {}} // Handleado por el onClick del FormItem
+                                                                />
+                                                            </FormControl>
+                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
+                                                                {option.text}
+                                                            </FormLabel>
+                                                        </FormItem>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </FormControl>
                                     <FormMessage className="pt-4 text-center text-base" />
                                 </FormItem>
                             )}
