@@ -94,7 +94,7 @@ function PollCard({ poll, onDeleteClick }: { poll: Poll, onDeleteClick: (poll: P
   );
 }
 
-// Room Access Card
+// Compact Room Access Card
 function RoomAccessCard({ adminId }: { adminId: string }) {
     const { toast } = useToast();
     const [roomUrl, setRoomUrl] = useState('');
@@ -112,53 +112,23 @@ function RoomAccessCard({ adminId }: { adminId: string }) {
     };
 
     return (
-        <Card className="border-primary/20 bg-primary/5 shadow-md">
-            <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                    <QrCode className="h-5 w-5 text-primary" />
-                    Acceso a tu Sala de Votación
-                </CardTitle>
-                <CardDescription>
-                    Comparte este código o enlace con los votantes para que ingresen a la sala.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col md:flex-row items-center gap-6">
-                <div className="flex-1 space-y-4 w-full">
-                    <div className="flex items-center gap-2 p-3 bg-background border rounded-lg overflow-hidden">
-                        <LinkIcon className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-mono truncate flex-1">{roomUrl}</span>
-                        <Button variant="ghost" size="icon" className="shrink-0" onClick={copyToClipboard}>
-                            <Copy className="h-4 w-4" />
-                        </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" size="sm" onClick={copyToClipboard}>
-                            <Copy className="mr-2 h-4 w-4" /> Copiar Enlace
-                        </Button>
-                        <Button variant="secondary" size="sm" asChild>
-                            <a href={roomUrl} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="mr-2 h-4 w-4" /> Probar Acceso
-                            </a>
-                        </Button>
-                    </div>
-                </div>
-                
+        <Card className="border-primary/20 bg-primary/5 shadow-sm overflow-hidden">
+            <CardContent className="p-4 flex items-center gap-4">
                 <Dialog open={isQrOpen} onOpenChange={setIsQrOpen}>
                     <DialogTrigger asChild>
-                        <button className="relative group shrink-0 border rounded-xl p-2 bg-white hover:border-primary transition-all shadow-sm">
+                        <button className="relative group shrink-0 border rounded-lg p-1 bg-white hover:border-primary transition-all shadow-sm">
                             {roomUrl && (
                                 <Image 
-                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(roomUrl)}`} 
+                                    src={`https://api.qrserver.com/v1/create-qr-code/?size=80x80&data=${encodeURIComponent(roomUrl)}`} 
                                     alt="QR Sala" 
-                                    width={100} 
-                                    height={100} 
+                                    width={64} 
+                                    height={64} 
                                     className="rounded-sm"
                                 />
                             )}
-                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 flex items-center justify-center rounded-xl transition-colors">
-                                <QrCode className="text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 flex items-center justify-center rounded-lg transition-colors">
+                                <QrCode className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                             </div>
-                            <p className="text-[10px] text-muted-foreground mt-1 text-center font-medium">Ampliar QR</p>
                         </button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-md flex flex-col items-center">
@@ -176,10 +146,29 @@ function RoomAccessCard({ adminId }: { adminId: string }) {
                             )}
                         </div>
                         <p className="text-sm text-center text-muted-foreground mt-4 italic">
-                            Los votantes deben escanear este código para ingresar a las votaciones disponibles.
+                            Los votantes deben escanear este código para ingresar a la sala.
                         </p>
                     </DialogContent>
                 </Dialog>
+
+                <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex flex-col">
+                        <span className="text-sm font-bold text-primary flex items-center gap-1">
+                            <LinkIcon className="h-3 w-3" /> Acceso a Sala
+                        </span>
+                        <span className="text-[10px] text-muted-foreground truncate opacity-70">ID: {adminId}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="default" size="sm" className="h-8 text-xs px-3" onClick={copyToClipboard}>
+                            <Copy className="mr-2 h-3 w-3" /> Copiar Enlace
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs px-3 hidden sm:flex" asChild>
+                            <a href={roomUrl} target="_blank" rel="noopener noreferrer">
+                                <ExternalLink className="mr-2 h-3 w-3" /> Probar
+                            </a>
+                        </Button>
+                    </div>
+                </div>
             </CardContent>
         </Card>
     );
@@ -319,7 +308,7 @@ export default function DashboardPage() {
         batch.delete(lookupRef);
         await batch.commit();
 
-        toast({ title: "¡Votación Eliminada!" });
+        toast({ title: "¡Votación Elimina!" });
     } catch(error: any) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: pollRef.path,
