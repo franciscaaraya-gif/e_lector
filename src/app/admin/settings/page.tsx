@@ -1,9 +1,11 @@
+
 'use client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { MartiresManager } from '@/components/admin/settings/MartiresManager';
 import { VoluntariosManager } from '@/components/admin/settings/VoluntariosManager';
 import { OrdenListaManager } from '@/components/admin/settings/OrdenListaManager';
 import { VotacionesTipoManager } from '@/components/admin/settings/VotacionesTipoManager';
+import { CollaboratorsManager } from '@/components/admin/settings/CollaboratorsManager';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -32,22 +34,23 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <CardHeader className="p-0">
         <CardTitle className="text-3xl font-bold tracking-tight font-headline">Configuración</CardTitle>
-        <CardDescription>Administra las listas de personal, el orden de las listas y las votaciones tipo.</CardDescription>
+        <CardDescription>Administra la sala, el personal y los colaboradores.</CardDescription>
       </CardHeader>
       
       <Tabs defaultValue="listas">
-        <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="listas">Listas y Personal</TabsTrigger>
-            <TabsTrigger value="votaciones">Votaciones</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="listas">Personal</TabsTrigger>
+            <TabsTrigger value="votaciones">Plantillas</TabsTrigger>
+            <TabsTrigger value="colaboradores">Colaboradores</TabsTrigger>
         </TabsList>
-        <TabsContent value="listas" className="mt-6">
+
+        <TabsContent value="listas" className="mt-6 space-y-6">
             {isBombero ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div className="space-y-6">
                   <Card>
                       <CardHeader>
                       <CardTitle>Mártires</CardTitle>
-                      <CardDescription>Añade o elimina mártires de la lista de honor.</CardDescription>
                       </CardHeader>
                       <CardContent>
                       <MartiresManager />
@@ -56,8 +59,7 @@ export default function SettingsPage() {
                   
                   <Card>
                       <CardHeader>
-                      <CardTitle>Voluntarios</CardTitle>
-                      <CardDescription>Carga la lista completa de voluntarios desde un archivo Excel y visualiza los bomberos activos.</CardDescription>
+                      <CardTitle>Voluntarios y RFID</CardTitle>
                       </CardHeader>
                       <CardContent>
                       <VoluntariosManager />
@@ -69,7 +71,6 @@ export default function SettingsPage() {
                   <Card>
                       <CardHeader>
                       <CardTitle>Orden de Lista</CardTitle>
-                      <CardDescription>Define la prioridad y el método de ordenamiento para cada tipo de personal al pasar lista.</CardDescription>
                       </CardHeader>
                       <CardContent>
                       <OrdenListaManager />
@@ -79,24 +80,27 @@ export default function SettingsPage() {
               </div>
             ) : (
               <Card>
-                  <CardHeader>
-                    <CardTitle>Voluntarios</CardTitle>
-                    <CardDescription>Carga la lista completa de voluntarios desde un archivo Excel y visualiza los bomberos activos.</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <VoluntariosManager />
-                  </CardContent>
+                  <CardHeader><CardTitle>Voluntarios</CardTitle></CardHeader>
+                  <CardContent><VoluntariosManager /></CardContent>
               </Card>
             )}
         </TabsContent>
+
         <TabsContent value="votaciones" className="mt-6">
             <Card>
+                <CardHeader><CardTitle>Votaciones Tipo</CardTitle></CardHeader>
+                <CardContent><VotacionesTipoManager /></CardContent>
+            </Card>
+        </TabsContent>
+
+        <TabsContent value="colaboradores" className="mt-6">
+            <Card>
                 <CardHeader>
-                <CardTitle>Votaciones Tipo</CardTitle>
-                <CardDescription>Crea plantillas para votaciones estándar y reutilizables.</CardDescription>
+                    <CardTitle>Gestión de Colaboradores</CardTitle>
+                    <CardDescription>Permite que otros administradores gestionen esta sala.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                <VotacionesTipoManager />
+                    <CollaboratorsManager />
                 </CardContent>
             </Card>
         </TabsContent>
@@ -104,5 +108,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    

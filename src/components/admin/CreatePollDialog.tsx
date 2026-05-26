@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -143,7 +144,7 @@ export function CreatePollDialog() {
     },
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, insert, remove, move } = useFieldArray({
     control: form.control,
     name: 'options',
   });
@@ -215,7 +216,7 @@ export function CreatePollDialog() {
 
         toast({
             title: '¡Votación Creada!',
-            description: `La votación se ha guardado como pendiente. Ahora puedes asignarle un grupo.`,
+            description: `La votación se ha guardado como pendiente.`,
         });
 
         setOpen(false);
@@ -232,6 +233,12 @@ export function CreatePollDialog() {
     }
   }
 
+  const addOptionBeforeDefaults = () => {
+    // Insertamos siempre antes de las últimas 2 (Blanco y Nulo)
+    const indexToInsert = Math.max(0, fields.length - 2);
+    insert(indexToInsert, { text: '' });
+  };
+
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if(!isOpen) resetDialog(); }}>
       <DialogTrigger asChild>
@@ -244,21 +251,21 @@ export function CreatePollDialog() {
         <DialogHeader>
           <DialogTitle>Crear Nueva Votación</DialogTitle>
           <DialogDescription>
-            Configura los detalles de tu votación. Podrás asignar el grupo más adelante.
+            Configura los detalles de tu votación. "Blanco" y "Nulo" siempre estarán al final.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4">
             <div className="space-y-2">
-              <Label>Plantilla de Votación (Opcional)</Label>
+              <Label>Plantilla (Opcional)</Label>
               <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
                 <FormControl>
                   <SelectTrigger>
-                    <SelectValue placeholder={templatesLoading ? "Cargando plantillas..." : "Usar una plantilla..."} />
+                    <SelectValue placeholder={templatesLoading ? "Cargando..." : "Usar plantilla..."} />
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="custom">Personalizada (desde cero)</SelectItem>
+                  <SelectItem value="custom">Personalizada</SelectItem>
                   {pollTemplates?.map(template => (
                     <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
                   ))}
@@ -271,9 +278,9 @@ export function CreatePollDialog() {
               name="question"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Pregunta de la Votación</FormLabel>
+                  <FormLabel>Pregunta</FormLabel>
                   <FormControl>
-                    <Input placeholder="Ej: ¿Cuál es tu color favorito?" {...field} disabled={isLoading} />
+                    <Input placeholder="Ej: ¿Quién debe ser el nuevo oficial?" {...field} disabled={isLoading} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -281,53 +288,61 @@ export function CreatePollDialog() {
             />
 
             <div className='space-y-2'>
-              <Label>Opciones de Respuesta</Label>
+              <Label>Opciones</Label>
               {isCargoElection && (
-                <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800">
+                <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800 p-2">
                     <AlertDescription className="text-xs">
-                        Elección de Cargo: Busca nombres de voluntarios escribiendo 3+ letras.
+                        Búsqueda de voluntarios activa para las opciones.
                     </AlertDescription>
                 </Alert>
               )}
-              {fields.map((field, index) => (
-                  <FormField
-                  key={field.id}
-                  control={form.control}
-                  name={`options.${index}.text`}
-                  render={({ field: formField }) => (
-                      <FormItem>
-                          <FormControl>
-                            <div className="flex items-center gap-2">
-                                <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                {isCargoElection ? (
-                                    <AutocompleteInput
-                                        field={formField}
-                                        index={index}
-                                        volunteers={volunteers || []}
-                                    />
-                                ) : (
-                                    <Input placeholder={`Opción ${index + 1}`} {...formField} />
-                                )}
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon"
-                                    className={cn('h-8 w-8', fields.length <= 2 && "invisible")}
-                                    onClick={() => remove(index)}
-                                    disabled={fields.length <= 2}
-                                >
-                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                </Button>
-                            </div>
-                          </FormControl>
-                          <FormMessage />
-                      </FormItem>
-                  )}
-                  />
-              ))}
-              <Button type="button" variant="outline" size="sm" onClick={() => append({ text: '' })}>
+              {fields.map((field, index) => {
+                  const isFixed = index >= fields.length - 2;
+                  return (
+                    <FormField
+                    key={field.id}
+                    control={form.control}
+                    name={`options.${index}.text`}
+                    render={({ field: formField }) => (
+                        <FormItem>
+                            <FormControl>
+                                <div className="flex items-center gap-2">
+                                    <GripVertical className={cn("h-4 w-4 text-muted-foreground", isFixed && "invisible")} />
+                                    {isCargoElection && !isFixed ? (
+                                        <AutocompleteInput
+                                            field={formField}
+                                            index={index}
+                                            volunteers={volunteers || []}
+                                        />
+                                    ) : (
+                                        <Input 
+                                            placeholder={`Opción ${index + 1}`} 
+                                            {...formField} 
+                                            disabled={isFixed}
+                                            className={isFixed ? "bg-muted" : ""}
+                                        />
+                                    )}
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className={cn('h-8 w-8', (isFixed || fields.length <= 3) && "invisible")}
+                                        onClick={() => remove(index)}
+                                        disabled={isFixed}
+                                    >
+                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                </div>
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                    />
+                  );
+              })}
+              <Button type="button" variant="outline" size="sm" onClick={addOptionBeforeDefaults}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Agregar Opción
+                  Agregar Opción Personalizada
               </Button>
             </div>
 
@@ -336,7 +351,7 @@ export function CreatePollDialog() {
               name="pollType"
               render={({ field }) => (
                 <FormItem className="space-y-3">
-                  <FormLabel>Tipo de Votación</FormLabel>
+                  <FormLabel>Tipo</FormLabel>
                   <FormControl>
                     <RadioGroup
                       onValueChange={field.onChange}
@@ -346,15 +361,14 @@ export function CreatePollDialog() {
                     >
                       <FormItem className="flex items-center space-x-3 space-y-0">
                         <FormControl><RadioGroupItem value="simple" /></FormControl>
-                        <FormLabel className="font-normal">Elección Simple</FormLabel>
+                        <FormLabel className="font-normal">Simple</FormLabel>
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
                         <FormControl><RadioGroupItem value="multiple" /></FormControl>
-                        <FormLabel className="font-normal">Selección Múltiple</FormLabel>
+                        <FormLabel className="font-normal">Múltiple</FormLabel>
                       </FormItem>
                     </RadioGroup>
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -365,9 +379,9 @@ export function CreatePollDialog() {
                 name="maxSelections"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Máximo de Opciones a Marcar</FormLabel>
+                    <FormLabel>Máximo de Selección</FormLabel>
                     <FormControl>
-                      <Input type="number" placeholder="Ej: 3" {...field} min={2} disabled={selectedTemplateId !== 'custom'} />
+                      <Input type="number" {...field} disabled={selectedTemplateId !== 'custom'} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -381,7 +395,7 @@ export function CreatePollDialog() {
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar Votación
+                Guardar
               </Button>
             </DialogFooter>
           </form>

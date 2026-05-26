@@ -3,8 +3,8 @@
 
 import { useState, ChangeEvent, DragEvent } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, writeBatch, query, where, doc, getDocs } from 'firebase/firestore';
-import { Copy, FileUp, Loader2, Trash2, Users, AlertTriangle } from 'lucide-react';
+import { collection, writeBatch, query, where, doc, getDocs, updateDoc } from 'firebase/firestore';
+import { Copy, FileUp, Loader2, Trash2, Users, AlertTriangle, CreditCard, Check } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -28,6 +28,7 @@ export function VoluntariosManager() {
   const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState('');
   const [parsedVoluntarios, setParsedVoluntarios] = useState<ParsedVoluntario[]>([]);
+  const [parsedRfid, setParsedRfid] = useState<{reg: string, card: string}[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -43,264 +44,181 @@ export function VoluntariosManager() {
 
   const { data: personal, isLoading: isLoadingPersonal } = useCollection<ListaCompletaItem>(personalQuery);
 
-  const headers = "Registro,Rut,Digito,Nombre,Segundo Nombre,Primer Apellido,Segundo Apellido,Sangre Grupo,Sangre Rh,Calidad,Cargo";
+  const headersPersonal = "Registro,Rut,Digito,Nombre,Segundo Nombre,Primer Apellido,Segundo Apellido,Sangre Grupo,Sangre Rh,Calidad,Cargo";
+  const headersRfid = "Registro,TarjetaID";
 
-  const copyHeaders = () => {
-      navigator.clipboard.writeText(headers);
-      toast({
-          title: "Encabezados copiados",
-          description: "Los encabezados requeridos para el archivo Excel han sido copiados.",
-      });
-  };
-
-  const handleTipoSelectionChange = (indexToUpdate: number, newTipo: string) => {
-    setParsedVoluntarios(currentVoluntarios =>
-        currentVoluntarios.map((vol, index) =>
-            index === indexToUpdate ? { ...vol, tipo: newTipo } : vol
-        )
-    );
-  };
-
-  const handleFile = (file: File) => {
+  const handleFilePersonal = (file: File) => {
     if (!file) return;
     setFileName(file.name);
-    setParsedVoluntarios([]);
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = e.target?.result;
         const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const rows = XLSX.utils.sheet_to_json<any>(worksheet);
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<any>(sheet);
 
-        const headerMap: { [key: string]: string } = {};
-        if (rows.length > 0) {
-            Object.keys(rows[0]).forEach(key => {
-                headerMap[normalizeHeader(key)] = key;
-            });
-        }
-        
-        const getColumn = (normalizedName: string) => headerMap[normalizedName];
+        const headerMap: any = {};
+        if (rows.length > 0) Object.keys(rows[0]).forEach(k => headerMap[normalizeHeader(k)] = k);
+        const getCol = (n: string) => headerMap[n];
 
-        const voluntarios = rows.map((row): ParsedVoluntario | null => {
-          const nombre = String(row[getColumn('NOMBRE')] || '').trim();
-          const segundoNombre = String(row[getColumn('SEGUNDONOMBRE')] || '').trim();
-          const primerApellido = String(row[getColumn('PRIMERAPELLIDO')] || '').trim();
-          const segundoApellido = String(row[getColumn('SEGUNDOAPELLIDO')] || '').trim();
-          const sangreGrupo = String(row[getColumn('SANGREGRUPO')] || '').trim();
-          const sangreRh = String(row[getColumn('SANGRERH')] || '').trim();
-          const cargo = String(row[getColumn('CARGO')] || '').trim();
-          const calidad = String(row[getColumn('CALIDAD')] || '').trim();
-          const rut = String(row[getColumn('RUT')] || '').trim();
-          const digito = String(row[getColumn('DIGITO')] || '').trim();
+        const results = rows.map((row): ParsedVoluntario | null => {
+          const nombres = `${row[getCol('NOMBRE')] || ''} ${row[getCol('SEGUNDONOMBRE')] || ''}`.trim();
+          const apellidos = `${row[getCol('PRIMERAPELLIDO')] || ''} ${row[getCol('SEGUNDOAPELLIDO')] || ''}`.trim();
+          if (!nombres && !apellidos) return null;
 
-          const nombres = `${nombre} ${segundoNombre}`.trim();
-          const apellidos = `${primerApellido} ${segundoApellido}`.trim();
-
-          if (!nombres && !apellidos && !rut) return null;
-
-          const isValidCargo = cargo && cargo !== '-';
-          const isValidCalidad = calidad && calidad !== '-';
-
-          let tipoFinal = 'Voluntarios';
-          if (isValidCargo) {
-              tipoFinal = cargo;
-          } else if (isValidCalidad) {
-              tipoFinal = calidad;
-          }
+          const cargo = String(row[getCol('CARGO')] || '').trim();
+          const calidad = String(row[getCol('CALIDAD')] || '').trim();
+          const tipoFinal = (cargo && cargo !== '-') ? cargo : ((calidad && calidad !== '-') ? calidad : 'Voluntarios');
 
           return {
-              nombres: nombres,
-              apellidos: apellidos,
-              ci: rut && digito ? `${rut}-${digito}` : (rut || ''),
-              regGeneral: String(row[getColumn('REGISTRO')] || ''),
-              compania: '', 
-              grupoSangre: `${sangreGrupo}${sangreRh}`.trim(),
-              donante: '',
-              alergias: '',
-              cargo: cargo,
-              calidad: calidad,
-              tipo: tipoFinal,
+            nombres, apellidos,
+            ci: `${row[getCol('RUT')] || ''}-${row[getCol('DIGITO')] || ''}`,
+            regGeneral: String(row[getCol('REGISTRO')] || ''),
+            tipo: tipoFinal,
+            grupoSangre: `${row[getCol('SANGREGRUPO')] || ''}${row[getCol('SANGRERH')] || ''}`,
           };
         }).filter((v): v is ParsedVoluntario => v !== null);
 
-        if (voluntarios.length === 0){
-            toast({ variant: 'destructive', title: 'Archivo no válido', description: "No se encontraron voluntarios. Revisa que el archivo tenga datos y los cabezales correctos."});
-            setFileName('');
-            return;
-        }
-        setParsedVoluntarios(voluntarios);
-        toast({ title: 'Archivo procesado', description: `Se han encontrado ${voluntarios.length} voluntarios para importar.` });
-      } catch (error) {
-        toast({ variant: 'destructive', title: 'Error al procesar el archivo', description: 'El formato del archivo es incorrecto.' });
-        setFileName('');
-      }
+        setParsedVoluntarios(results);
+        toast({ title: 'Personal procesado', description: `${results.length} voluntarios encontrados.` });
+      } catch (err) { toast({ variant: 'destructive', title: 'Error al procesar' }); }
     };
-    reader.onerror = () => { toast({ variant: 'destructive', title: 'Error al leer el archivo' }); }
     reader.readAsArrayBuffer(file);
   };
 
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => { if (e.target.files) handleFile(e.target.files[0]); };
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); };
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); };
-  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true); };
-  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); e.stopPropagation(); setIsDragging(false); };
-  const handleRemoveFile = () => { setFileName(''); setParsedVoluntarios([]); const fileInput = document.getElementById('voluntarios-file-upload') as HTMLInputElement; if(fileInput) fileInput.value = ''; };
+  const handleFileRfid = (file: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json<any>(sheet);
 
-  async function handleUpload() {
+        const headerMap: any = {};
+        if (rows.length > 0) Object.keys(rows[0]).forEach(k => headerMap[normalizeHeader(k)] = k);
+        const getCol = (n: string) => headerMap[n];
+
+        const results = rows.map(row => ({
+          reg: String(row[getCol('REGISTRO')] || '').trim(),
+          card: String(row[getCol('TARJETAID')] || '').trim()
+        })).filter(r => r.reg && r.card);
+
+        setParsedRfid(results);
+        toast({ title: 'Tarjetas procesadas', description: `${results.length} tarjetas encontradas.` });
+      } catch (err) { toast({ variant: 'destructive', title: 'Error al procesar RFID' }); }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  async function uploadPersonal() {
     if (!firestore || !user || parsedVoluntarios.length === 0) return;
     setIsUploading(true);
-    
     try {
         const batch = writeBatch(firestore);
-        const collectionRef = collection(firestore, 'admins', user.uid, 'lista_completa');
-        
-        const q = query(collectionRef, where('tipo', '!=', 'Martir '));
-        const snapshot = await getDocs(q);
-        snapshot.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
+        const colRef = collection(firestore, 'admins', user.uid, 'lista_completa');
+        const snap = await getDocs(query(colRef, where('tipo', '!=', 'Martir ')));
+        snap.docs.forEach(d => batch.delete(d.ref));
+        parsedVoluntarios.forEach(v => batch.set(doc(colRef), { ...v, adminId: user.uid }));
+        await batch.commit();
+        toast({ title: 'Carga exitosa' });
+        setParsedVoluntarios([]);
+    } catch (e) { toast({ variant: 'destructive', title: 'Error' }); } finally { setIsUploading(false); }
+  }
 
-        parsedVoluntarios.forEach(voluntario => {
-            const docRef = doc(collectionRef);
-            batch.set(docRef, { ...voluntario, adminId: user.uid });
+  async function uploadRfid() {
+    if (!firestore || !user || parsedRfid.length === 0) return;
+    setIsUploading(true);
+    try {
+        const colRef = collection(firestore, 'admins', user.uid, 'lista_completa');
+        const snap = await getDocs(colRef);
+        const batch = writeBatch(firestore);
+        let updatedCount = 0;
+
+        parsedRfid.forEach(rfid => {
+            const item = snap.docs.find(d => (d.data() as ListaCompletaItem).regGeneral === rfid.reg);
+            if (item) {
+                batch.update(item.ref, { rfid: rfid.card });
+                updatedCount++;
+            }
         });
 
         await batch.commit();
-        toast({ title: 'Carga exitosa', description: `${parsedVoluntarios.length} voluntarios han sido añadidos a la lista completa.` });
-        handleRemoveFile();
-    } catch(e) {
-        toast({ variant: 'destructive', title: 'Error en la carga', description: 'No se pudieron guardar los voluntarios.' });
-    } finally {
-        setIsUploading(false);
-    }
+        toast({ title: 'RFID Actualizado', description: `Se vincularon ${updatedCount} tarjetas.` });
+        setParsedRfid([]);
+    } catch (e) { toast({ variant: 'destructive', title: 'Error RFID' }); } finally { setIsUploading(false); }
   }
-  
+
   return (
     <div className="space-y-6">
-      <Alert>
-          <AlertTitle className="flex items-center justify-between text-sm">
-              <span>Encabezados para el archivo Excel</span>
-              <Button variant="ghost" size="sm" className="h-auto px-2 py-1" onClick={copyHeaders}>
-                  <Copy className="mr-2 h-3 w-3" /> Copiar
-              </Button>
-          </AlertTitle>
-          <AlertDescription className="pt-2">
-              <code className="relative rounded bg-muted px-2 py-1 font-mono text-xs font-semibold block overflow-x-auto">
-                  {headers}
-              </code>
-          </AlertDescription>
-      </Alert>
-        <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Atención</AlertTitle>
-            <AlertDescription>
-            Al cargar un nuevo archivo, se **reemplazará completamente** la lista de personal existente (excepto los mártires).
-            </AlertDescription>
-        </Alert>
-      <div
-        className={cn("relative flex flex-col items-center justify-center w-full p-6 border-2 border-dashed rounded-lg cursor-pointer hover:border-primary/50 transition-colors", isDragging && "border-primary bg-primary/10")}
-        onDrop={handleDrop} onDragOver={handleDragOver} onDragEnter={handleDragEnter} onDragLeave={handleDragLeave} onClick={() => document.getElementById('voluntarios-file-upload')?.click()}
-      >
-        <FileUp className="w-10 h-10 text-muted-foreground" />
-        <p className="mt-2 text-sm text-muted-foreground"><span className="font-semibold text-primary">Haz clic para subir</span> o arrastra un archivo</p>
-        <p className="text-xs text-muted-foreground">Archivo Excel (.xlsx, .csv)</p>
-        <Input id="voluntarios-file-upload" type="file" className="hidden" accept=".xlsx, .csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" onChange={handleFileChange} disabled={isUploading}/>
-      </div>
+      <Tabs defaultValue="personal">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="personal">Cargar Personal</TabsTrigger>
+            <TabsTrigger value="rfid">Vincular Tarjetas RFID</TabsTrigger>
+        </TabsList>
 
-      {parsedVoluntarios.length > 0 && (
-        <div className="space-y-4 pt-4 border-t">
-          <div className="flex items-center justify-between">
-            <h4 className="text-sm font-medium">Voluntarios a Importar: {parsedVoluntarios.length}</h4>
-            <div className="flex items-center gap-2">
-                <Button type="button" variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleRemoveFile}>
-                    <Trash2 className="mr-1 h-3 w-3" /> Limpiar
-                </Button>
-                 <Button onClick={handleUpload} disabled={isUploading}>
-                    {isUploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    Cargar y Reemplazar Lista
-                </Button>
+        <TabsContent value="personal" className="space-y-4 pt-4">
+            <Alert>
+                <AlertTitle className="text-sm">Encabezados Personal</AlertTitle>
+                <AlertDescription className="font-mono text-[10px] break-all">{headersPersonal}</AlertDescription>
+            </Alert>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center" onClick={() => document.getElementById('file-personal')?.click()}>
+                <FileUp className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="text-xs mt-2">Sube Excel de Voluntarios</p>
+                <input id="file-personal" type="file" className="hidden" onChange={(e) => e.target.files && handleFilePersonal(e.target.files[0])} />
             </div>
-          </div>
-           <p className='text-sm text-muted-foreground -mt-2'>Fuente: <span className='font-mono text-xs bg-muted p-1 rounded'>{fileName}</span>.</p>
-          <ScrollArea className="h-60 border rounded-md">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nombres</TableHead>
-                  <TableHead>Apellidos</TableHead>
-                  <TableHead>Tipo (Cargo/Calidad)</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {parsedVoluntarios.map((vol, index) => {
-                  const hasConflict = vol.cargo && vol.cargo !== '-' && vol.calidad && vol.calidad !== '-';
-                  return (
-                    <TableRow key={index}>
-                      <TableCell>{vol.nombres}</TableCell>
-                      <TableCell>{vol.apellidos}</TableCell>
-                      <TableCell>
-                        {hasConflict && vol.cargo && vol.calidad ? (
-                           <Select
-                                value={vol.tipo}
-                                onValueChange={(newTipo) => handleTipoSelectionChange(index, newTipo)}
-                            >
-                                <SelectTrigger className="h-9">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={vol.cargo}>{vol.cargo}</SelectItem>
-                                    <SelectItem value={vol.calidad}>{vol.calidad}</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        ) : (
-                            vol.tipo
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </ScrollArea>
-        </div>
-      )}
+            {parsedVoluntarios.length > 0 && (
+                <div className="flex justify-between items-center p-2 bg-muted rounded">
+                    <span className="text-xs font-medium">{parsedVoluntarios.length} voluntarios listos.</span>
+                    <Button size="sm" onClick={uploadPersonal} disabled={isUploading}>
+                        {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirmar Carga'}
+                    </Button>
+                </div>
+            )}
+        </TabsContent>
 
-      <div className="space-y-4 pt-6 border-t">
-        <h3 className="text-lg font-semibold flex items-center gap-2"><Users /> Listado del Personal</h3>
-        {isLoadingPersonal && (
-            <div className='border rounded-lg p-4'>
-                <Skeleton className='h-8 w-full mb-2'/>
-                <Skeleton className='h-8 w-full'/>
+        <TabsContent value="rfid" className="space-y-4 pt-4">
+             <Alert variant="default" className="bg-blue-50 border-blue-200">
+                <AlertTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4" /> Vinculación de Tarjetas</AlertTitle>
+                <AlertDescription className="text-xs">Usa este Excel para asignar IDs de tarjetas a registros ya cargados.</AlertDescription>
+            </Alert>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center" onClick={() => document.getElementById('file-rfid')?.click()}>
+                <CreditCard className="mx-auto h-8 w-8 text-muted-foreground" />
+                <p className="text-xs mt-2">Sube Excel de Tarjetas (Registro, TarjetaID)</p>
+                <input id="file-rfid" type="file" className="hidden" onChange={(e) => e.target.files && handleFileRfid(e.target.files[0])} />
             </div>
-        )}
-        {!isLoadingPersonal && personal && personal.length > 0 && (
+            {parsedRfid.length > 0 && (
+                <div className="flex justify-between items-center p-2 bg-muted rounded">
+                    <span className="text-xs font-medium">{parsedRfid.length} vinculaciones listas.</span>
+                    <Button size="sm" onClick={uploadRfid} disabled={isUploading}>
+                        {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Actualizar Tarjetas'}
+                    </Button>
+                </div>
+            )}
+        </TabsContent>
+      </Tabs>
+
+      <div className="pt-6 border-t">
+        <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Users /> Listado de Personal Activo</h3>
+        <ScrollArea className="h-80 border rounded-md">
             <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Registro</TableHead>
-                        <TableHead>Apellidos</TableHead>
-                        <TableHead>Nombres</TableHead>
-                        <TableHead>Tipo</TableHead>
-                    </TableRow>
-                </TableHeader>
+                <TableHeader><TableRow><TableHead>Reg.</TableHead><TableHead>Nombre</TableHead><TableHead>Tipo</TableHead><TableHead>RFID</TableHead></TableRow></TableHeader>
                 <TableBody>
-                    {personal.map(p => (
+                    {personal?.map(p => (
                         <TableRow key={p.id}>
-                            <TableCell>{p.regGeneral}</TableCell>
-                            <TableCell>{p.apellidos}</TableCell>
-                            <TableCell>{p.nombres}</TableCell>
-                            <TableCell>{p.tipo}</TableCell>
+                            <TableCell className="font-mono text-xs">{p.regGeneral}</TableCell>
+                            <TableCell className="text-xs">{p.nombres} {p.apellidos}</TableCell>
+                            <TableCell className="text-xs">{p.tipo}</TableCell>
+                            <TableCell className="text-xs">
+                                {p.rfid ? <Badge variant="secondary" className="bg-green-100 text-green-800"><Check className="h-3 w-3 mr-1" /> {p.rfid}</Badge> : '-'}
+                            </TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
             </Table>
-        )}
-        {!isLoadingPersonal && (!personal || personal.length === 0) && (
-            <p className='text-sm text-muted-foreground text-center py-4'>No se ha cargado personal. Utiliza el formulario de arriba para importar una lista.</p>
-        )}
+        </ScrollArea>
       </div>
     </div>
   );

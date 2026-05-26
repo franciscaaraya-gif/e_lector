@@ -1,72 +1,72 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // REGLA GLOBAL PARA CONSULTAS DE GRUPO (INDISPENSABLE PARA LA BANDEJA DE ENTRADA)
-    match /{path=**}/voters/{vDocId} {
-        // Permitimos lectura a cualquiera (incluyendo anónimos) para que la consulta no sea bloqueada por reglas
-        allow read: if true;
-        
-        // Escritura protegida para el admin o para marcar el voto
-        allow create, update: if request.auth != null;
-        allow delete: if request.auth != null && request.auth.uid == (resource == null ? request.auth.uid : resource.data.adminId);
-    }
 
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    // Función para verificar si el usuario es dueño o colaborador de una sala (adminId)
+    function isAuthorizedAdmin(adminId) {
+      return isSignedIn() && (
+        request.auth.uid == adminId || 
+        exists(/databases/$(database)/documents/admins/$(adminId)/collaborators/$(request.auth.uid))
+      );
     }
 
-    // Regla para que los votantes puedan leer los detalles de la encuesta a la que pertenecen
-    // Y para que el admin gestione sus encuestas y vea los votos
+    match /{path=**}/voters/{vDocId} {
+        allow read: if true;
+        allow create, update: if isSignedIn();
+        allow delete: if isAuthorizedAdmin(resource.data.adminId);
+    }
+
     match /admins/{adminId}/polls/{pollId} {
       allow get: if true; 
       allow list: if true;
-      allow create, update, delete: if isOwner(adminId);
+      allow create, update, delete: if isAuthorizedAdmin(adminId);
 
-      // Sub-colección de votos (donde se emite el sufragio)
       match /votes/{voteId} {
-        allow list, get: if isOwner(adminId);
-        allow create: if true; // Los votantes anónimos crean el voto aquí
-        allow update, delete: if isOwner(adminId);
+        allow list, get: if isAuthorizedAdmin(adminId);
+        allow create: if true;
+        allow update, delete: if isAuthorizedAdmin(adminId);
       }
 
-      // Sub-colección de estado de votantes
       match /voters/{vDocId} {
-        allow read, write: if isOwner(adminId);
+        allow read: if true;
+        allow write: if isAuthorizedAdmin(adminId);
       }
     }
 
     match /admins/{adminId} {
       allow get: if true;
-      allow list: if isOwner(adminId);
-      allow create, update, delete: if isOwner(adminId);
+      allow list: if isAuthorizedAdmin(adminId);
+      allow create, update, delete: if isAuthorizedAdmin(adminId);
 
       match /groups/{groupId} {
-        allow read, write: if isOwner(adminId);
+        allow read, write: if isAuthorizedAdmin(adminId);
+      }
+      
+      match /collaborators/{collabId} {
+        allow read, write: if isAuthorizedAdmin(adminId);
       }
 
       match /lista_completa/{itemId} {
-        allow read, write: if isOwner(adminId);
+        allow read, write: if isAuthorizedAdmin(adminId);
       }
 
       match /orden_lista/{ordenId} {
-        allow read, write: if isOwner(adminId);
+        allow read, write: if isAuthorizedAdmin(adminId);
       }
       
       match /poll_templates/{templateId} {
-        allow read, write: if isOwner(adminId);
+        allow read, write: if isAuthorizedAdmin(adminId);
       }
     }
     
     match /poll-lookup/{pollId} {
       allow get: if true;
-      allow list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow list, create, delete: if isSignedIn();
     }
 
     match /salas/{salaId} {

@@ -53,14 +53,14 @@ export type Vote = {
 }
 
 export type VoterStatus = {
-  id: string; // The document ID from the 'voters' subcollection
-  voterId: string; // The business logic ID of the voter
+  id: string; 
+  voterId: string; 
   pollId: string;
   hasVoted: boolean;
   adminId: string;
   enabled?: boolean;
-  nombre?: string; // Denormalized name for snapshot
-  apellido?: string; // Denormalized last name for snapshot
+  nombre?: string; 
+  apellido?: string; 
 };
 
 export type PollLookup = {
@@ -85,12 +85,19 @@ export type ListaCompletaItem = {
   tipo: string;
   ci?: string;
   regGeneral?: string;
+  rfid?: string;
   compania?: string;
   grupoSangre?: string;
   donante?: string;
   alergias?: string;
   cargo?: string;
   calidad?: string;
+};
+
+export type Collaborator = {
+  id: string;
+  email: string;
+  addedAt: Timestamp;
 };
 
 export type OrdenLista = {

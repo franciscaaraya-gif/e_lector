@@ -1,3 +1,4 @@
+
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +13,9 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, Info, HelpCircle, ExternalLink } from 'lucide-react';
+import { Info, HelpCircle, Lock, CheckCircle2 } from 'lucide-react';
 import InboxLoading from './loading';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 
 function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, voterId: string }) {
     const firestore = useFirestore();
@@ -27,26 +28,48 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
 
     if (isLoading) return <Card className="animate-pulse h-32" />;
     
-    if (error || !poll || poll.status !== 'active') return null;
+    // Mostramos la encuesta si está activa o pendiente (pero solo se vota si está activa)
+    if (error || !poll || poll.status === 'closed') return null;
+
+    const canVote = poll.status === 'active' && !voterStatus.hasVoted;
 
     return (
-        <Card className="border-l-4 border-l-primary shadow-sm hover:shadow-md transition-shadow">
-            <CardHeader>
-                <CardTitle className="truncate text-lg">{poll.question}</CardTitle>
+        <Card className={cn(
+            "border-l-4 shadow-sm hover:shadow-md transition-shadow",
+            poll.status === 'active' ? "border-l-primary" : "border-l-muted opacity-80"
+        )}>
+            <CardHeader className="pb-3">
+                <div className="flex justify-between items-start gap-2">
+                    <CardTitle className="truncate text-lg">{poll.question}</CardTitle>
+                    {poll.status === 'pending' && <Badge variant="secondary">Próximamente</Badge>}
+                    {voterStatus.hasVoted && <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50"><CheckCircle2 className="h-3 w-3 mr-1" /> Votado</Badge>}
+                </div>
                 <CardDescription>
-                    {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple (máx. ${poll.maxSelections})`}
+                    {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple`}
                 </CardDescription>
             </CardHeader>
             <CardFooter>
-                <Button asChild className="w-full">
-                    <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
-                        Ir a Votar Ahora
-                    </Link>
-                </Button>
+                {poll.status === 'active' ? (
+                    voterStatus.hasVoted ? (
+                        <Button variant="ghost" className="w-full" disabled>Gracias por votar</Button>
+                    ) : (
+                        <Button asChild className="w-full shadow-md">
+                            <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
+                                Ir a Votar Ahora
+                            </Link>
+                        </Button>
+                    )
+                ) : (
+                    <Button variant="outline" className="w-full text-muted-foreground" disabled>
+                        <Lock className="h-4 w-4 mr-2" /> Votación no iniciada
+                    </Button>
+                )}
             </CardFooter>
         </Card>
     );
 }
+
+import { cn } from '@/lib/utils';
 
 function PollsInboxClient() {
     const searchParams = useSearchParams();
@@ -55,7 +78,6 @@ function PollsInboxClient() {
     const salaId = searchParams.get('salaId');
 
     const [isAuthenticating, setIsAuthenticating] = useState(false);
-    const [showDebug, setShowDebug] = useState(false);
     
     const firestore = useFirestore();
     const auth = useAuth();
@@ -63,13 +85,8 @@ function PollsInboxClient() {
 
     useEffect(() => {
         if (!auth || isAuthLoading || user) return;
-
         setIsAuthenticating(true);
-        signInAnonymously(auth)
-            .catch(err => {
-                console.error("Auth error:", err);
-            })
-            .finally(() => setIsAuthenticating(false));
+        signInAnonymously(auth).finally(() => setIsAuthenticating(false));
     }, [auth, user, isAuthLoading]);
 
     const votersQuery = useMemoFirebase(() => {
@@ -78,12 +95,11 @@ function PollsInboxClient() {
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
             where('voterId', '==', voterId),
-            where('hasVoted', '==', false),
             where('enabled', '==', true)
         );
     }, [firestore, voterId, salaId, user]);
 
-    const { data: voterDocs, isLoading: isDocsLoading, error: docsError } = useCollection<VoterStatus>(votersQuery);
+    const { data: voterDocs, isLoading: isDocsLoading } = useCollection<VoterStatus>(votersQuery);
 
     useEffect(() => {
         if (!voterId || !salaId) {
@@ -93,19 +109,13 @@ function PollsInboxClient() {
 
     const isLoading = isDocsLoading || isAuthLoading || isAuthenticating;
 
-    if (isLoading) {
-        return <InboxLoading />;
-    }
-
-    // Extraer link de índice si existe en el error
-    const indexLink = docsError?.message?.match(/https:\/\/console\.firebase\.google\.com[^\s]*/)?.[0];
+    if (isLoading) return <InboxLoading />;
     
     return (
         <div className="w-full space-y-6">
              <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold font-headline">Bandeja de Entrada</h1>
                 <div className="flex flex-wrap justify-center gap-2">
-                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">Sala: {salaId}</span>
                     <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">ID: {voterId}</span>
                 </div>
              </div>
@@ -116,8 +126,8 @@ function PollsInboxClient() {
                         <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                              <Info className="h-8 w-8 text-primary" />
                         </div>
-                        <CardTitle className="mb-2">Sin votaciones pendientes</CardTitle>
-                        <p className="text-muted-foreground text-sm">No tienes votaciones activas en este momento. Aparecerán aquí automáticamente cuando el administrador inicie una y estés habilitado.</p>
+                        <CardTitle className="mb-2">Sin votaciones</CardTitle>
+                        <p className="text-muted-foreground text-sm">No tienes votaciones pendientes en esta sala.</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -129,44 +139,6 @@ function PollsInboxClient() {
                             voterId={voterId!} 
                         />
                     ))}
-                </div>
-            )}
-
-            {/* Ayuda técnica para el administrador */}
-            {docsError && (
-                <div className="pt-8 text-center">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="text-muted-foreground text-[10px]" 
-                        onClick={() => setShowDebug(!showDebug)}
-                    >
-                        <HelpCircle className="h-3 w-3 mr-1" /> Ayuda técnica (Configuración)
-                    </Button>
-                    
-                    {showDebug && (
-                        <Alert variant="destructive" className="mt-4 text-left">
-                            <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>Falta Configuración de Base de Datos</AlertTitle>
-                            <AlertDescription className="text-xs space-y-4">
-                                <p>Para que la bandeja de entrada funcione, Firebase necesita crear un <strong>Índice Compuesto</strong>.</p>
-                                
-                                {indexLink ? (
-                                    <div className="space-y-2">
-                                        <p className="font-bold">Haz clic en el siguiente botón para crearlo automáticamente:</p>
-                                        <Button asChild variant="secondary" size="sm" className="w-full">
-                                            <a href={indexLink} target="_blank" rel="noopener noreferrer">
-                                                <ExternalLink className="mr-2 h-4 w-4" /> Crear Índice Ahora
-                                            </a>
-                                        </Button>
-                                        <p className="text-[10px] opacity-70 italic">Nota: Una vez que hagas clic, tardará unos 3-5 minutos en activarse.</p>
-                                    </div>
-                                ) : (
-                                    <p>Abre la consola del navegador (F12) para encontrar el enlace de creación automática de Firebase.</p>
-                                )}
-                            </AlertDescription>
-                        </Alert>
-                    )}
                 </div>
             )}
         </div>

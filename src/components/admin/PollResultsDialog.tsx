@@ -1,3 +1,4 @@
+
 'use client';
 import {
   Bar,
@@ -23,11 +24,10 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download, CheckCircle2, XCircle, Search } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "../ui/button";
 import * as XLSX from 'xlsx';
-import { Badge } from "../ui/badge";
 
 interface PollResultsDialogProps {
   poll: Poll;
@@ -101,7 +101,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             ["INFORME DE VOTACIÓN E-LECTOR"],
             [""],
             ["Pregunta:", poll.question],
-            ["Estado:", poll.status === 'closed' ? "Cerrada" : (poll.status === 'active' ? "Activa" : "Pendiente")],
+            ["Estado:", poll.status === 'closed' ? "Cerrada" : "Finalizada"],
             ["Fecha Activación:", poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
             ["Fecha Cierre:", poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
             [""],
@@ -164,7 +164,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
-                    {/* Sección de Tiempos y Estado */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="bg-muted/50 p-3 rounded-lg flex items-center gap-3">
                             <Clock className="h-5 w-5 text-muted-foreground" />
@@ -177,14 +176,13 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             <Clock className="h-5 w-5 text-muted-foreground" />
                             <div className="flex flex-col">
                                 <span className="text-[10px] uppercase text-muted-foreground font-semibold">Término</span>
-                                <span className="text-sm">{poll.closedAt ? format(poll.closedAt.toDate(), "d MMM, HH:mm", { locale: es }) : (poll.status === 'active' ? 'En curso...' : 'N/A')}</span>
+                                <span className="text-sm">{poll.closedAt ? format(poll.closedAt.toDate(), "d MMM, HH:mm", { locale: es }) : 'N/A'}</span>
                             </div>
                          </div>
                     </div>
 
                     <Separator />
 
-                    {/* Resumen Estadístico */}
                     {isLoading ? (
                         <div className="space-y-2"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div>
                     ) : stats && (
@@ -214,7 +212,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
 
                     <Separator />
 
-                    {/* Resultados Gráficos */}
                     <div>
                         <h4 className="font-semibold text-sm mb-4 flex items-center gap-2">
                             <Info className="h-4 w-4" /> Distribución de Resultados
@@ -258,7 +255,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                         </div>
                     </div>
 
-                    {/* Desglose de Opciones */}
                     <div className="border rounded-md">
                         <Table>
                             <TableHeader>
@@ -279,63 +275,10 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             </TableBody>
                         </Table>
                     </div>
-
-                    <Separator />
-
-                    {/* Detalle de Participantes */}
-                    <div>
-                        <h4 className="font-semibold text-sm mb-4 flex items-center gap-2">
-                            <Users className="h-4 w-4" /> Detalle de Participación Individual
-                        </h4>
-                        <div className="border rounded-md">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow className="bg-muted/50">
-                                        <TableHead className="text-xs">Votante</TableHead>
-                                        <TableHead className="text-xs">Estado</TableHead>
-                                        <TableHead className="text-right text-xs">¿Votó?</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {votersStatus?.map((voter) => (
-                                        <TableRow key={voter.id}>
-                                            <TableCell className="py-2">
-                                                <div className="flex flex-col">
-                                                    <span className="text-sm font-medium">{voter.nombre} {voter.apellido}</span>
-                                                    <span className="text-[10px] text-muted-foreground font-mono">{voter.voterId}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="py-2">
-                                                {voter.enabled !== false ? (
-                                                    <Badge variant="outline" className="text-[10px] py-0 border-green-200 text-green-700 bg-green-50">Habilitado</Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="text-[10px] py-0 border-red-200 text-red-700 bg-red-50">No Hab.</Badge>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-right py-2">
-                                                {voter.hasVoted ? (
-                                                    <div className="flex justify-end"><CheckCircle2 className="h-4 w-4 text-green-500" /></div>
-                                                ) : (
-                                                    <div className="flex justify-end"><XCircle className="h-4 w-4 text-muted-foreground/30" /></div>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                    {(!votersStatus || votersStatus.length === 0) && (
-                                        <TableRow>
-                                            <TableCell colSpan={3} className="text-center py-4 text-muted-foreground text-sm italic">
-                                                No hay registros de votantes disponibles.
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </div>
-                    </div>
                 </div>
                 
                 <div className="text-center text-[10px] text-muted-foreground border-t pt-4">
-                    Este informe fue generado automáticamente por E-lector. Todos los votos individuales son anónimos, el sistema solo registra quién participó.
+                    Este informe fue generado automáticamente por E-lector. Los resultados son definitivos y auditables mediante el archivo Excel.
                 </div>
             </DialogContent>
         </Dialog>

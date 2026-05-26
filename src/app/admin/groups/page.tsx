@@ -1,14 +1,15 @@
+
 'use client';
 
-import { collection, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, deleteDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { PlusCircle, Trash2, Eye } from 'lucide-react';
+import { PlusCircle, Trash2, Eye, Users, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { VoterGroup } from '@/lib/types';
+import { VoterGroup, ListaCompletaItem } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -157,6 +158,7 @@ export default function GroupsPage() {
   const { toast } = useToast();
   
   const [groupToDelete, setGroupToDelete] = useState<VoterGroup | null>(null);
+  const [isBulkCreating, setIsBulkCreating] = useState(false);
 
   const groupsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -179,7 +181,6 @@ export default function GroupsPage() {
     const groupRef = doc(firestore, 'admins', user.uid, 'groups', groupToDelete.id);
     const groupName = groupToDelete.name;
 
-    // Close dialog immediately
     setGroupToDelete(null);
     
     toast({
@@ -194,11 +195,49 @@ export default function GroupsPage() {
             description: `El grupo "${groupName}" ha sido eliminado.`,
         });
     } catch(error: any) {
-        const permissionError = new FirestorePermissionError({
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: groupRef.path,
             operation: 'delete',
+        }));
+    }
+  };
+
+  const handleCreateAllUsersGroup = async () => {
+    if (!firestore || !user) return;
+    setIsBulkCreating(true);
+    
+    try {
+        const personnelQuery = query(collection(firestore, 'admins', user.uid, 'lista_completa'));
+        const personnelSnap = await getDocs(personnelQuery);
+        
+        if (personnelSnap.empty) {
+            toast({ variant: 'destructive', title: 'Error', description: 'No hay personal cargado en la lista.' });
+            setIsBulkCreating(false);
+            return;
+        }
+
+        const voters = personnelSnap.docs.map(doc => {
+            const data = doc.data() as ListaCompletaItem;
+            return {
+                id: data.regGeneral || doc.id,
+                nombre: data.nombres,
+                apellido: data.apellidos,
+                enabled: true
+            };
         });
-        errorEmitter.emit('permission-error', permissionError);
+
+        await addDoc(collection(firestore, 'admins', user.uid, 'groups'), {
+            name: `Todo el Personal (${voters.length})`,
+            adminId: user.uid,
+            voters,
+            createdAt: serverTimestamp()
+        });
+
+        toast({ title: 'Grupo Masivo Creado', description: `Se ha creado un grupo con ${voters.length} miembros.` });
+    } catch (e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo crear el grupo masivo.' });
+    } finally {
+        setIsBulkCreating(false);
     }
   };
 
@@ -211,8 +250,14 @@ export default function GroupsPage() {
         <Card>
             <CardHeader>
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-                <CardTitle>Tus Grupos</CardTitle>
-                <CreateGroupDialog />
+                    <CardTitle>Tus Grupos</CardTitle>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <Button variant="outline" onClick={handleCreateAllUsersGroup} disabled={isBulkCreating}>
+                            {isBulkCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Users className="mr-2 h-4 w-4" />}
+                            Grupo: Todo el Personal
+                        </Button>
+                        <CreateGroupDialog />
+                    </div>
                 </div>
             </CardHeader>
             <CardContent>

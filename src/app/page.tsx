@@ -1,8 +1,9 @@
+
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
-import { Vote, Users, LogIn } from "lucide-react";
+import { Users, LogIn } from "lucide-react";
 import { ElectorIcon } from "@/components/icons";
 
 export default function Home() {
@@ -16,20 +17,12 @@ export default function Home() {
           <span className="text-xl font-bold tracking-tight text-primary font-headline">E-lector</span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Button variant="ghost" asChild>
-            <Link
-              href="/inbox"
-              prefetch={false}
-            >
-              Ir a Votación
-            </Link>
-          </Button>
           <Button variant="outline" asChild>
             <Link
               href="/admin/login"
               prefetch={false}
             >
-              Administrador
+              Acceso Administrador
             </Link>
           </Button>
         </nav>
@@ -50,24 +43,18 @@ export default function Home() {
                 )}
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-4">
-                  <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none font-headline">
-                    Votación Segura, Transparente y Anónima
+                  <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none font-headline text-primary">
+                    Votación Digital Segura y Auditada
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    E-lector provee una solución moderna para elecciones digitales, asegurando que cada voto sea contado de forma segura y la privacidad del votante sea protegida.
+                    Utiliza tu enlace directo o código QR para acceder a la bandeja de votación. Sistema anónimo, transparente y de alta seguridad.
                   </p>
                 </div>
                 <div className="flex flex-col gap-4 min-[400px]:flex-row">
-                  <Button asChild size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                    <Link href="/inbox">
-                      <LogIn className="mr-2 h-5 w-5" />
-                      Ir a Votar
-                    </Link>
-                  </Button>
-                  <Button asChild size="lg" variant="secondary">
+                  <Button asChild size="lg" variant="secondary" className="border-primary/20">
                     <Link href="/admin/login">
                       <Users className="mr-2 h-5 w-5" />
-                      Panel de Administración
+                      Gestión de Sala
                     </Link>
                   </Button>
                 </div>
@@ -76,11 +63,11 @@ export default function Home() {
           </div>
         </section>
       </main>
-      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">&copy; 2024 E-lector. Todos los derechos reservados.</p>
+      <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t text-muted-foreground">
+        <p className="text-xs">&copy; 2024 E-lector. Todos los derechos reservados.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
-            Términos de Servicio
+            Términos
           </Link>
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
             Privacidad
