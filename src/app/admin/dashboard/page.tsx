@@ -1,4 +1,3 @@
-
 'use client';
 
 import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore';
@@ -10,11 +9,11 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
-import { Poll, VoterGroup } from '@/lib/types';
+import { Poll } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/badge";
+import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CreatePollDialog } from '@/components/admin/CreatePollDialog';
