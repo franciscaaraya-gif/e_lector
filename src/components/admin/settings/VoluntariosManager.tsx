@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, ChangeEvent, DragEvent } from 'react';
@@ -16,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from '@/components/ui/badge';
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -164,7 +164,7 @@ export function VoluntariosManager() {
                 <AlertTitle className="text-sm">Encabezados Personal</AlertTitle>
                 <AlertDescription className="font-mono text-[10px] break-all">{headersPersonal}</AlertDescription>
             </Alert>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center" onClick={() => document.getElementById('file-personal')?.click()}>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer" onClick={() => document.getElementById('file-personal')?.click()}>
                 <FileUp className="mx-auto h-8 w-8 text-muted-foreground" />
                 <p className="text-xs mt-2">Sube Excel de Voluntarios</p>
                 <input id="file-personal" type="file" className="hidden" onChange={(e) => e.target.files && handleFilePersonal(e.target.files[0])} />
@@ -184,7 +184,7 @@ export function VoluntariosManager() {
                 <AlertTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4" /> Vinculación de Tarjetas</AlertTitle>
                 <AlertDescription className="text-xs">Usa este Excel para asignar IDs de tarjetas a registros ya cargados.</AlertDescription>
             </Alert>
-            <div className="border-2 border-dashed rounded-lg p-6 text-center" onClick={() => document.getElementById('file-rfid')?.click()}>
+            <div className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer" onClick={() => document.getElementById('file-rfid')?.click()}>
                 <CreditCard className="mx-auto h-8 w-8 text-muted-foreground" />
                 <p className="text-xs mt-2">Sube Excel de Tarjetas (Registro, TarjetaID)</p>
                 <input id="file-rfid" type="file" className="hidden" onChange={(e) => e.target.files && handleFileRfid(e.target.files[0])} />
