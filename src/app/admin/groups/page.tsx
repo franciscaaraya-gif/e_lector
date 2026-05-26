@@ -1,7 +1,7 @@
 
 'use client';
 
-import { collection, query, orderBy, doc, deleteDoc, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, doc, deleteDoc, addDoc, serverTimestamp, getDocs, where } from 'firebase/firestore';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -207,11 +207,15 @@ export default function GroupsPage() {
     setIsBulkCreating(true);
     
     try {
-        const personnelQuery = query(collection(firestore, 'admins', user.uid, 'lista_completa'));
+        // Excluimos explícitamente a los mártires del grupo automático
+        const personnelQuery = query(
+          collection(firestore, 'admins', user.uid, 'lista_completa'),
+          where('tipo', '!=', 'Martir ')
+        );
         const personnelSnap = await getDocs(personnelQuery);
         
         if (personnelSnap.empty) {
-            toast({ variant: 'destructive', title: 'Error', description: 'No hay personal cargado en la lista.' });
+            toast({ variant: 'destructive', title: 'Error', description: 'No hay personal activo cargado en la lista.' });
             setIsBulkCreating(false);
             return;
         }
@@ -233,7 +237,7 @@ export default function GroupsPage() {
             createdAt: serverTimestamp()
         });
 
-        toast({ title: 'Grupo Masivo Creado', description: `Se ha creado un grupo con ${voters.length} miembros.` });
+        toast({ title: 'Grupo Masivo Creado', description: `Se ha creado un grupo con ${voters.length} miembros activos.` });
     } catch (e) {
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo crear el grupo masivo.' });
     } finally {

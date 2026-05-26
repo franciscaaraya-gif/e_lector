@@ -1,8 +1,9 @@
+
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Fingerprint, 
@@ -14,7 +15,8 @@ import {
   AlertCircle,
   Users,
   Save,
-  Check
+  Check,
+  Edit2
 } from 'lucide-react';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -31,6 +33,15 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import GroupDetailsLoading from './loading';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
@@ -44,6 +55,9 @@ export default function GroupDetailsPage() {
   const [manualLastNames, setManualLastNames] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const [isEditNameOpen, setIsEditNameOpen] = useState(false);
+  const [newName, setNewName] = useState('');
+
   // Get current group data
   const groupRef = useMemoFirebase(() => {
     if (!firestore || !user || !groupId) return null;
@@ -51,6 +65,12 @@ export default function GroupDetailsPage() {
   }, [firestore, user, groupId]);
 
   const { data: group, isLoading: isGroupLoading } = useDoc<VoterGroup>(groupRef);
+
+  useEffect(() => {
+    if (group) {
+        setNewName(group.name);
+    }
+  }, [group]);
 
   // Load personnel list for lookup
   const personalQuery = useMemoFirebase(() => {
@@ -86,7 +106,7 @@ export default function GroupDetailsPage() {
 
     try {
       await updateDoc(groupRef, { voters: updatedVoters });
-      toast({ title: 'Votante Agregado', description: `${voter.nombre} ha sido añadido al grupo.` });
+      toast({ title: 'Agregado', description: `${voter.nombre} ha sido añadido al grupo.` });
       setSearchId('');
     } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -150,6 +170,20 @@ export default function GroupDetailsPage() {
     }
   };
 
+  const handleUpdateGroupName = async () => {
+    if (!groupRef || !newName.trim()) return;
+    setIsUpdating(true);
+    try {
+        await updateDoc(groupRef, { name: newName.trim() });
+        toast({ title: 'Nombre Actualizado', description: 'El nombre del grupo ha sido cambiado.' });
+        setIsEditNameOpen(false);
+    } catch (e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo actualizar el nombre.' });
+    } finally {
+        setIsUpdating(false);
+    }
+  }
+
   const addManualVoter = () => {
     if (!manualNames.trim() || !manualLastNames.trim()) {
       toast({ variant: 'destructive', title: 'Datos incompletos', description: 'Por favor ingresa nombre y apellido.' });
@@ -191,15 +225,37 @@ export default function GroupDetailsPage() {
           <Button variant="ghost" size="icon" asChild>
             <Link href="/admin/groups"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
-          <h1 className="text-2xl font-bold font-headline">Enrolamiento: {group.name}</h1>
+          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setIsEditNameOpen(true)}>
+             <h1 className="text-2xl font-bold font-headline">{group.name}</h1>
+             <Edit2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
         </div>
         {isUpdating && (
           <div className="flex items-center text-sm text-muted-foreground animate-pulse">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Guardando cambios...
+            Guardando...
           </div>
         )}
       </div>
+
+      <Dialog open={isEditNameOpen} onOpenChange={setIsEditNameOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Editar Nombre del Grupo</DialogTitle>
+                  <DialogDescription>Cambia el nombre para identificar mejor este grupo de votantes.</DialogDescription>
+              </DialogHeader>
+              <div className="py-4">
+                  <Label>Nombre del Grupo</Label>
+                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ej: Asamblea Ordinaria" />
+              </div>
+              <DialogFooter>
+                  <Button variant="ghost" onClick={() => setIsEditNameOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleUpdateGroupName} disabled={isUpdating || !newName.trim()}>
+                      Guardar Cambios
+                  </Button>
+              </DialogFooter>
+          </DialogContent>
+      </Dialog>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-1 space-y-6">
@@ -207,14 +263,14 @@ export default function GroupDetailsPage() {
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Search className="h-5 w-5 text-primary" />
-                Buscar Miembros
+                Enrolamiento
               </CardTitle>
-              <CardDescription>Busca por nombre o escanea la tarjeta de identificación.</CardDescription>
+              <CardDescription>Busca por nombre o Número de Registro.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Input 
-                  placeholder="Nombre o ID de registro..." 
+                  placeholder="Buscar por nombre o ID..." 
                   className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
@@ -261,7 +317,7 @@ export default function GroupDetailsPage() {
                 <UserPlus className="h-5 w-5 text-primary" />
                 Votante Externo
               </CardTitle>
-              <CardDescription>Agregar sin registro previo en el listado.</CardDescription>
+              <CardDescription>Agregar sin registro previo.</CardDescription>
             </CardHeader>
             <CardContent>
               {showManualForm ? (
@@ -276,7 +332,7 @@ export default function GroupDetailsPage() {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowManualForm(false)}>Cancelar</Button>
-                    <Button className="flex-1" onClick={addManualVoter} disabled={isUpdating}>Asignar EXT-ID</Button>
+                    <Button className="flex-1" onClick={addManualVoter} disabled={isUpdating}>Registrar</Button>
                   </div>
                 </div>
               ) : (
@@ -304,7 +360,7 @@ export default function GroupDetailsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID de Registro</TableHead>
+                      <TableHead>Número de Registro</TableHead>
                       <TableHead>Nombre Completo</TableHead>
                       <TableHead className="text-right">Acción</TableHead>
                     </TableRow>
