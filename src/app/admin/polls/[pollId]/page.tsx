@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -70,7 +69,6 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
         if (votersStatus) {
             const merged = votersStatus.map(v => ({
                 id: v.voterId,
-                // Fallback: Si no tiene nombre (data antigua), mostrar el ID
                 nombre: v.nombre || v.voterId,
                 apellido: v.apellido || '',
                 hasVoted: v.hasVoted,
@@ -155,7 +153,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre / ID</TableHead>
+                  <TableHead>Nombre / Registro</TableHead>
                   <TableHead>Estado de Acceso</TableHead>
                   <TableHead>¿Votó?</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -286,15 +284,12 @@ export default function PollDetailsPage() {
         const batch = writeBatch(firestore);
         const pollRef = doc(firestore, 'admins', user.uid, 'polls', poll.id);
         
-        // 1. Vincular el grupo a la votación
         batch.update(pollRef, { groupId: selectedGroupId });
 
-        // 2. Limpiar votantes previos si existieran (en caso de re-asignación)
         const votersCollRef = collection(firestore, 'admins', user.uid, 'polls', poll.id, 'voters');
         const existingVotersSnap = await getDocs(votersCollRef);
         existingVotersSnap.forEach(vdoc => batch.delete(vdoc.ref));
 
-        // 3. Crear registros iniciales de votantes (Snapshot: incluyo nombre y apellido)
         selectedGroup.voters.forEach(voter => {
             const vRef = doc(votersCollRef);
             batch.set(vRef, {
@@ -309,7 +304,7 @@ export default function PollDetailsPage() {
         });
 
         await batch.commit();
-        toast({ title: "Grupo Asignado", description: "Votantes vinculados correctamente. Ahora puedes habilitar/deshabilitar individualmente." });
+        toast({ title: "Grupo Asignado", description: "Votantes vinculados correctamente." });
     } catch (error) {
         toast({ variant: 'destructive', title: "Error", description: "No se pudo asignar el grupo." });
     } finally {

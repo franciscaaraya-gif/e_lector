@@ -60,7 +60,7 @@ export default function PollDetailsLoading() {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>ID de Votante</TableHead>
+                            <TableHead>Número de Registro</TableHead>
                             <TableHead>Ha Votado</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>

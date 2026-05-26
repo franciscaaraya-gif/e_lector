@@ -52,7 +52,7 @@ function VotePageClient() {
 
     useEffect(() => {
         if (!voterId) {
-            setError("Falta el ID de votante.");
+            setError("Falta el Número de Registro.");
             setIsFetchingData(false);
             return;
         }
@@ -82,7 +82,7 @@ function VotePageClient() {
                 const q = query(votersRef, where('voterId', '==', voterId), limit(1));
                 const voterSnap = await getDocs(q);
 
-                if (voterSnap.empty) throw new Error('No eres elegible para votar en esta votación, o tu ID de votante es incorrecto.');
+                if (voterSnap.empty) throw new Error('No eres elegible para votar en esta votación, o tu Número de Registro es incorrecto.');
 
                 const voterDoc = voterSnap.docs[0];
                 const voterStatusData = voterDoc.data() as VoterStatus;
@@ -172,14 +172,14 @@ function VotePageClient() {
         return pageLayout(
              <Card>
                 <CardHeader>
-                    <CardTitle>Falta el ID de votante</CardTitle>
+                    <CardTitle>Falta el Número de Registro</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Alert variant="destructive">
                         <AlertCircle className="h-4 w-4" />
                         <AlertTitle>Parámetro no encontrado</AlertTitle>
                         <AlertDescription>
-                            Para votar, tu ID de votante debe estar incluido en el enlace. Por favor, accede a través de tu bandeja de entrada.
+                            Para votar, tu Número de Registro debe estar incluido en el enlace. Por favor, accede a través de tu bandeja de entrada.
                         </AlertDescription>
                     </Alert>
                 </CardContent>
@@ -314,7 +314,7 @@ function VotePageClient() {
                                                                 <Checkbox 
                                                                     className="sr-only"
                                                                     checked={isSelected}
-                                                                    onCheckedChange={() => {}} // Handleado por el onClick del FormItem
+                                                                    onCheckedChange={() => {}} 
                                                                 />
                                                             </FormControl>
                                                             <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">

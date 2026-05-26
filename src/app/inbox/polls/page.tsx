@@ -1,4 +1,3 @@
-
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Info, HelpCircle, Lock, CheckCircle2 } from 'lucide-react';
 import InboxLoading from './loading';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, voterId: string }) {
     const firestore = useFirestore();
@@ -28,7 +28,6 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
 
     if (isLoading) return <Card className="animate-pulse h-32" />;
     
-    // Mostramos la encuesta si está activa o pendiente (pero solo se vota si está activa)
     if (error || !poll || poll.status === 'closed') return null;
 
     const canVote = poll.status === 'active' && !voterStatus.hasVoted;
@@ -68,8 +67,6 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
         </Card>
     );
 }
-
-import { cn } from '@/lib/utils';
 
 function PollsInboxClient() {
     const searchParams = useSearchParams();
@@ -116,7 +113,7 @@ function PollsInboxClient() {
              <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold font-headline">Bandeja de Entrada</h1>
                 <div className="flex flex-wrap justify-center gap-2">
-                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">ID: {voterId}</span>
+                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">Registro: {voterId}</span>
                 </div>
              </div>
 
