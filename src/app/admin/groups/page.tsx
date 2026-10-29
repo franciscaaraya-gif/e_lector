@@ -5,7 +5,7 @@ import { collection, query, orderBy, doc, deleteDoc, addDoc, serverTimestamp, ge
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { PlusCircle, Trash2, Eye, Users, Loader2 } from 'lucide-react';
+import { PlusCircle, Trash2, Eye, Users, Loader2, Copy } from 'lucide-react';
 import { useState } from 'react';
 
 import { useFirestore, useCollection, useUser, useMemoFirebase } from '@/firebase';
@@ -30,7 +30,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 
-function GroupCard({ group, onGroupDeleteClick }: { group: VoterGroup, onGroupDeleteClick: (group: VoterGroup) => void }) {
+function GroupCard({ group, onGroupDeleteClick, onGroupDuplicateClick }: { group: VoterGroup, onGroupDeleteClick: (group: VoterGroup) => void, onGroupDuplicateClick: (group: VoterGroup) => void }) {
   return (
     <Card>
       <CardHeader>
@@ -46,14 +46,23 @@ function GroupCard({ group, onGroupDeleteClick }: { group: VoterGroup, onGroupDe
         <Button asChild className="flex-1">
           <Link href={`/admin/groups/${group.id}`}>
             <Eye className="mr-2 h-4 w-4" />
-            Ver Detalles
+            Ver
           </Link>
+        </Button>
+        <Button 
+          variant="outline" 
+          size="icon"
+          onClick={() => onGroupDuplicateClick(group)}
+          title="Duplicar"
+        >
+          <Copy className="h-4 w-4" />
         </Button>
         <Button 
           variant="outline" 
           size="icon"
           className="text-destructive hover:bg-destructive/10" 
           onClick={() => onGroupDeleteClick(group)}
+          title="Eliminar"
         >
           <Trash2 className="h-4 w-4" />
         </Button>
@@ -62,7 +71,7 @@ function GroupCard({ group, onGroupDeleteClick }: { group: VoterGroup, onGroupDe
   );
 }
 
-function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGroup[] | null, isLoading: boolean, onGroupDeleteClick: (group: VoterGroup) => void }) {
+function GroupsList({ groups, isLoading, onGroupDeleteClick, onGroupDuplicateClick }: { groups: VoterGroup[] | null, isLoading: boolean, onGroupDeleteClick: (group: VoterGroup) => void, onGroupDuplicateClick: (group: VoterGroup) => void }) {
 
   if (isLoading) {
     return (
@@ -108,7 +117,14 @@ function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGr
   return (
     <>
       <div className="md:hidden space-y-4">
-        {groups.map((group) => <GroupCard key={group.id} group={group} onGroupDeleteClick={onGroupDeleteClick} />)}
+        {groups.map((group) => (
+          <GroupCard 
+            key={group.id} 
+            group={group} 
+            onGroupDeleteClick={onGroupDeleteClick} 
+            onGroupDuplicateClick={onGroupDuplicateClick}
+          />
+        ))}
       </div>
       <div className="hidden md:block">
         <Table>
@@ -136,8 +152,17 @@ function GroupsList({ groups, isLoading, onGroupDeleteClick }: { groups: VoterGr
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => onGroupDuplicateClick(group)}
+                      title="Duplicar"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => onGroupDeleteClick(group)}
+                      title="Eliminar"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -199,6 +224,27 @@ export default function GroupsPage() {
             path: groupRef.path,
             operation: 'delete',
         }));
+    }
+  };
+
+  const handleDuplicateGroup = async (group: VoterGroup) => {
+    if (!firestore || !user) return;
+    
+    toast({ 
+      title: "Duplicando grupo...", 
+      description: `Copiando lista de ${group.voters.length} personas.` 
+    });
+    
+    try {
+        await addDoc(collection(firestore, 'admins', user.uid, 'groups'), {
+            name: `Copia de ${group.name}`,
+            adminId: user.uid,
+            voters: group.voters, // Solo copiamos a los votantes
+            createdAt: serverTimestamp()
+        });
+        toast({ title: "¡Grupo Duplicado!", description: "Se ha creado una copia con los mismos miembros." });
+    } catch (e) {
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo duplicar el grupo.' });
     }
   };
 
@@ -265,7 +311,12 @@ export default function GroupsPage() {
                 </div>
             </CardHeader>
             <CardContent>
-                <GroupsList groups={groups} isLoading={isLoading} onGroupDeleteClick={handleGroupDeleteClick} />
+                <GroupsList 
+                  groups={groups} 
+                  isLoading={isLoading} 
+                  onGroupDeleteClick={handleGroupDeleteClick} 
+                  onGroupDuplicateClick={handleDuplicateGroup}
+                />
             </CardContent>
         </Card>
         <AlertDialog open={!!groupToDelete} onOpenChange={(open) => !open && handleGroupDeleteCancel()}>
