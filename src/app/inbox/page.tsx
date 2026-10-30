@@ -34,18 +34,23 @@ function VoterInboxLanding() {
                 <QrCode className="mx-auto h-12 w-12 text-primary mb-2" />
                 <CardTitle className="text-2xl font-headline">Bandeja de Entrada</CardTitle>
                 <CardDescription>
-                    Escanea tu tarjeta de identificación o ingresa tu <strong>Número de Registro</strong> para ver las votaciones en la sala <strong>{salaId}</strong>.
+                    Escanea tu tarjeta de identificación o ingresa tu Número de Registro para ver las votaciones en la sala <strong>{salaId}</strong>.
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <form action="/inbox/polls" method="GET" className="space-y-4">
                     <input type="hidden" name="salaId" value={salaId} />
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Número de Registro</label>
+                        <label className="text-sm font-medium uppercase text-center block leading-tight">
+                            INGRESE N° DE REGISTRO<br />
+                            <span className="text-[10px] text-muted-foreground font-normal">
+                                (SI NO LO CONOCE CONSULTE A LOS OFICIALES O REVISE EN SU PLACA)
+                            </span>
+                        </label>
                         <input 
                             name="voterId"
-                            className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                            placeholder="Escanea o ingresa tu registro..."
+                            className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-center"
+                            placeholder="Ej: 12345"
                             autoFocus
                             required
                         />

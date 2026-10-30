@@ -1,21 +1,20 @@
 'use client';
 
-import { useState, ChangeEvent, DragEvent } from 'react';
+import { useState, useMemo } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, writeBatch, query, where, doc, getDocs, updateDoc } from 'firebase/firestore';
-import { Copy, FileUp, Loader2, Trash2, Users, AlertTriangle, CreditCard, Check } from 'lucide-react';
+import { collection, writeBatch, query, where, doc, getDocs } from 'firebase/firestore';
+import { FileUp, Loader2, Users, CreditCard, Check, Eye, EyeOff } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { ListaCompletaItem } from '@/lib/types';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -25,11 +24,11 @@ const normalizeHeader = (header: string) => {
 }
 
 export function VoluntariosManager() {
-  const [isDragging, setIsDragging] = useState(false);
   const [fileName, setFileName] = useState('');
   const [parsedVoluntarios, setParsedVoluntarios] = useState<ParsedVoluntario[]>([]);
   const [parsedRfid, setParsedRfid] = useState<{reg: string, card: string}[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [showIds, setShowIds] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
   const { user } = useUser();
@@ -201,14 +200,35 @@ export function VoluntariosManager() {
       </Tabs>
 
       <div className="pt-6 border-t">
-        <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Users /> Listado de Personal Activo</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Users /> Listado de Personal Activo</h3>
+            <div className="flex items-center space-x-2 bg-muted/50 px-3 py-1.5 rounded-full border w-fit">
+                <Switch 
+                    id="show-ids-settings" 
+                    checked={showIds} 
+                    onCheckedChange={setShowIds}
+                    className="data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="show-ids-settings" className="text-[10px] uppercase font-bold cursor-pointer flex items-center gap-1.5">
+                    {showIds ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                    Mostrar N° de registro
+                </Label>
+            </div>
+        </div>
         <ScrollArea className="h-80 border rounded-md">
             <Table>
-                <TableHeader><TableRow><TableHead>Reg.</TableHead><TableHead>Nombre</TableHead><TableHead>Tipo</TableHead><TableHead>RFID</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                    <TableRow>
+                        {showIds && <TableHead className="w-24">Reg.</TableHead>}
+                        <TableHead>Nombre</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead>RFID</TableHead>
+                    </TableRow>
+                </TableHeader>
                 <TableBody>
                     {personal?.map(p => (
                         <TableRow key={p.id}>
-                            <TableCell className="font-mono text-xs">{p.regGeneral}</TableCell>
+                            {showIds && <TableCell className="font-mono text-xs">{p.regGeneral}</TableCell>}
                             <TableCell className="text-xs">{p.nombres} {p.apellidos}</TableCell>
                             <TableCell className="text-xs">{p.tipo}</TableCell>
                             <TableCell className="text-xs">

@@ -153,7 +153,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Nombre / Registro</TableHead>
+                  <TableHead>Nombre Completo</TableHead>
                   <TableHead>Estado de Acceso</TableHead>
                   <TableHead>¿Votó?</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -163,10 +163,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
                 {mergedVoters.map((voter) => (
                   <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
                     <TableCell className="font-medium">
-                        <div className='flex flex-col'>
-                            <span className="font-semibold">{voter.nombre} {voter.apellido}</span>
-                            <span className='text-[10px] text-muted-foreground font-mono uppercase'>{voter.id}</span>
-                        </div>
+                        <span className="font-semibold">{voter.nombre} {voter.apellido}</span>
                     </TableCell>
                     <TableCell>
                         <div className="flex items-center space-x-2">
@@ -213,7 +210,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
                                 disabled={poll.status !== 'pending'}
                             />
                           </div>
-                          <CardDescription className="font-mono text-xs">{voter.id} | {voter.enabled ? 'Habilitado' : 'No habilitado'}</CardDescription>
+                          <CardDescription className="text-xs">{voter.enabled ? 'Habilitado' : 'No habilitado'}</CardDescription>
                       </CardHeader>
                       <CardContent className="flex justify-between items-center">
                          {voter.hasVoted ? <Badge className='bg-green-100 text-green-800'>Votó</Badge> : <Badge variant="outline">No ha votado</Badge>}

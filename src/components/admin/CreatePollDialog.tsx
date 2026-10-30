@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -99,13 +98,14 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
                     {suggestions.map(v => (
                         <div
                             key={v.id}
-                            className="p-2 hover:bg-accent cursor-pointer text-sm"
+                            className="p-2 hover:bg-accent cursor-pointer text-sm flex justify-between items-center"
                             onMouseDown={(e) => {
                                 e.preventDefault();
                                 handleSuggestionClick(v);
                             }}
                         >
-                            {v.nombres} {v.apellidos}
+                            <span>{v.nombres} {v.apellidos}</span>
+                            <span className="text-[10px] text-muted-foreground uppercase">{v.tipo}</span>
                         </div>
                     ))}
                 </ScrollArea>
@@ -234,7 +234,6 @@ export function CreatePollDialog() {
   }
 
   const addOptionBeforeDefaults = () => {
-    // Insertamos siempre antes de las últimas 2 (Blanco y Nulo)
     const indexToInsert = Math.max(0, fields.length - 2);
     insert(indexToInsert, { text: '' });
   };

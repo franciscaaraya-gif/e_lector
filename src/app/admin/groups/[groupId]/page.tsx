@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
@@ -16,7 +15,10 @@ import {
   Users,
   Save,
   Check,
-  Edit2
+  Edit2,
+  ShieldCheck,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -33,6 +35,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import GroupDetailsLoading from './loading';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +57,7 @@ export default function GroupDetailsPage() {
   const [manualNames, setManualNames] = useState('');
   const [manualLastNames, setManualLastNames] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [showIds, setShowIds] = useState(false);
 
   const [isEditNameOpen, setIsEditNameOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -80,16 +84,14 @@ export default function GroupDetailsPage() {
 
   const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
 
-  // Search logic for UI preview (multi-match)
+  // Search logic for UI preview (Privacy: ID search disabled)
   const searchResults = useMemo(() => {
     if (!searchId.trim() || !personnel || searchId.trim().length < 2) return [];
     const search = searchId.trim().toLowerCase();
     
     return personnel.filter(p => 
-      (p.regGeneral && String(p.regGeneral).toLowerCase().includes(search)) || 
-      p.id.toLowerCase().includes(search) ||
       `${p.nombres} ${p.apellidos}`.toLowerCase().includes(search)
-    ).slice(0, 5); // Limit to 5 results for the picker
+    ).slice(0, 5);
   }, [searchId, personnel]);
 
   const addVoterToGroup = async (voter: VoterInfo) => {
@@ -121,24 +123,7 @@ export default function GroupDetailsPage() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      const value = e.currentTarget.value.trim().toLowerCase();
-      if (!value || !personnel) return;
-
-      // Try exact ID match first
-      const exactMatch = personnel.find(p => 
-        (p.regGeneral && String(p.regGeneral).toLowerCase() === value) || 
-        p.id.toLowerCase() === value
-      );
-
-      if (exactMatch) {
-        addVoterToGroup({
-          id: exactMatch.regGeneral || exactMatch.id,
-          nombre: exactMatch.nombres,
-          apellido: exactMatch.apellidos,
-          enabled: true
-        });
-      } else if (searchResults.length === 1) {
-        // If there's only one search result (by name or partial ID), add it on Enter
+      if (searchResults.length === 1) {
         const found = searchResults[0];
         addVoterToGroup({
           id: found.regGeneral || found.id,
@@ -230,12 +215,26 @@ export default function GroupDetailsPage() {
              <Edit2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
-        {isUpdating && (
-          <div className="flex items-center text-sm text-muted-foreground animate-pulse">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Guardando...
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+            <div className="flex items-center space-x-2 bg-muted/50 px-3 py-1.5 rounded-full border">
+                <Switch 
+                    id="show-ids" 
+                    checked={showIds} 
+                    onCheckedChange={setShowIds}
+                    className="data-[state=checked]:bg-primary"
+                />
+                <Label htmlFor="show-ids" className="text-[10px] uppercase font-bold cursor-pointer flex items-center gap-1.5">
+                    {showIds ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+                    Mostrar N° de registro
+                </Label>
+            </div>
+            {isUpdating && (
+                <div className="flex items-center text-sm text-muted-foreground animate-pulse">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                </div>
+            )}
+        </div>
       </div>
 
       <Dialog open={isEditNameOpen} onOpenChange={setIsEditNameOpen}>
@@ -265,12 +264,12 @@ export default function GroupDetailsPage() {
                 <Search className="h-5 w-5 text-primary" />
                 Enrolamiento
               </CardTitle>
-              <CardDescription>Busca por nombre o Número de Registro.</CardDescription>
+              <CardDescription>Busca por nombre para agregar.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Input 
-                  placeholder="Buscar por nombre o ID..." 
+                  placeholder="Buscar por nombre..." 
                   className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
@@ -296,7 +295,10 @@ export default function GroupDetailsPage() {
                         >
                           <div className="min-w-0">
                             <p className="font-bold text-sm truncate">{voter.nombres} {voter.apellidos}</p>
-                            <p className="text-[10px] text-muted-foreground font-mono truncate">{voter.regGeneral || voter.id} | {voter.tipo}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">
+                                {voter.tipo}
+                                {showIds && <span className="ml-2 font-mono text-primary">| {voter.regGeneral || voter.id}</span>}
+                            </p>
                           </div>
                           <Check className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                         </button>
@@ -360,7 +362,7 @@ export default function GroupDetailsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Número de Registro</TableHead>
+                      {showIds && <TableHead className="w-32">N° Registro</TableHead>}
                       <TableHead>Nombre Completo</TableHead>
                       <TableHead className="text-right">Acción</TableHead>
                     </TableRow>
@@ -368,18 +370,20 @@ export default function GroupDetailsPage() {
                   <TableBody>
                     {group.voters.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={3} className="h-32 text-center text-muted-foreground italic">
+                        <TableCell colSpan={showIds ? 3 : 2} className="h-32 text-center text-muted-foreground italic">
                           No hay personas enroladas aún.<br />Usa el panel lateral para buscar y agregar miembros.
                         </TableCell>
                       </TableRow>
                     ) : (
                       group.voters.map((voter) => (
                         <TableRow key={voter.id}>
-                          <TableCell className="font-mono text-xs">
-                            <span className={voter.id.startsWith('EXT-') ? 'text-blue-600 font-semibold' : ''}>
-                              {voter.id}
-                            </span>
-                          </TableCell>
+                          {showIds && (
+                             <TableCell className="font-mono text-xs">
+                                <span className={voter.id.startsWith('EXT-') ? 'text-blue-600 font-semibold' : ''}>
+                                    {voter.id}
+                                </span>
+                             </TableCell>
+                          )}
                           <TableCell>{voter.nombre} {voter.apellido}</TableCell>
                           <TableCell className="text-right">
                             <Button 

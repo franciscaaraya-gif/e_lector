@@ -12,7 +12,7 @@ import { Poll, VoterStatus } from '@/lib/types';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Info, HelpCircle, Lock, CheckCircle2 } from 'lucide-react';
+import { Info, Lock, CheckCircle2, UserX } from 'lucide-react';
 import InboxLoading from './loading';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -30,25 +30,32 @@ function PollInboxItem({ voterStatus, voterId }: { voterStatus: VoterStatus, vot
     
     if (error || !poll || poll.status === 'closed') return null;
 
-    const canVote = poll.status === 'active' && !voterStatus.hasVoted;
+    const isEnabled = voterStatus.enabled !== false;
+    const canVote = poll.status === 'active' && !voterStatus.hasVoted && isEnabled;
 
     return (
         <Card className={cn(
             "border-l-4 shadow-sm hover:shadow-md transition-shadow",
-            poll.status === 'active' ? "border-l-primary" : "border-l-muted opacity-80"
+            poll.status === 'active' ? "border-l-primary" : "border-l-muted opacity-80",
+            !isEnabled && "border-l-destructive bg-destructive/5"
         )}>
             <CardHeader className="pb-3">
                 <div className="flex justify-between items-start gap-2">
                     <CardTitle className="truncate text-lg">{poll.question}</CardTitle>
                     {poll.status === 'pending' && <Badge variant="secondary">Próximamente</Badge>}
                     {voterStatus.hasVoted && <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50"><CheckCircle2 className="h-3 w-3 mr-1" /> Votado</Badge>}
+                    {!isEnabled && <Badge variant="destructive">Deshabilitado</Badge>}
                 </div>
                 <CardDescription>
                     {poll.pollType === 'simple' ? 'Selección simple' : `Selección múltiple`}
                 </CardDescription>
             </CardHeader>
             <CardFooter>
-                {poll.status === 'active' ? (
+                {!isEnabled ? (
+                    <div className="w-full flex items-center justify-center p-2 text-destructive font-semibold text-sm">
+                        Usted está deshabilitado para votar
+                    </div>
+                ) : poll.status === 'active' ? (
                     voterStatus.hasVoted ? (
                         <Button variant="ghost" className="w-full" disabled>Gracias por votar</Button>
                     ) : (
@@ -91,8 +98,7 @@ function PollsInboxClient() {
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
-            where('voterId', '==', voterId),
-            where('enabled', '==', true)
+            where('voterId', '==', voterId)
         );
     }, [firestore, voterId, salaId, user]);
 
@@ -112,19 +118,18 @@ function PollsInboxClient() {
         <div className="w-full space-y-6">
              <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold font-headline">Bandeja de Entrada</h1>
-                <div className="flex flex-wrap justify-center gap-2">
-                    <span className="text-[10px] bg-muted text-muted-foreground px-2 py-1 rounded-full uppercase tracking-wider font-mono">Registro: {voterId}</span>
-                </div>
+                <p className="text-xs text-muted-foreground">Sala: {salaId}</p>
              </div>
 
             {!voterDocs || voterDocs.length === 0 ? (
-                <Card className="text-center p-8 border-dashed border-2 bg-muted/30">
+                <Card className="text-center p-8 border-dashed border-2 bg-destructive/5 border-destructive/20">
                     <CardContent className="pt-6">
-                        <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                             <Info className="h-8 w-8 text-primary" />
+                        <div className="bg-destructive/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                             <UserX className="h-8 w-8 text-destructive" />
                         </div>
-                        <CardTitle className="mb-2">Sin votaciones</CardTitle>
-                        <p className="text-muted-foreground text-sm">No tienes votaciones pendientes en esta sala.</p>
+                        <CardTitle className="mb-2">Acceso Denegado</CardTitle>
+                        <p className="text-destructive font-medium text-sm">Usted no está presente en la reunión</p>
+                        <p className="text-muted-foreground text-xs mt-4">Si cree que esto es un error, por favor contacte a los oficiales de mesa.</p>
                     </CardContent>
                 </Card>
             ) : (

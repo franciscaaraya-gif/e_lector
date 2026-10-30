@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ArrowLeft, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ElectorIcon } from "@/components/icons";
@@ -32,12 +32,18 @@ function VoteSuccessClient() {
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-4">
                 <p className="text-muted-foreground">Tu voto anónimo ha sido registrado de forma segura.</p>
-                <div className="flex flex-col sm:flex-row gap-4 w-full">
-                    <Button asChild variant="outline" className="w-full">
-                        <Link href={inboxHref}>Volver a la bandeja de entrada</Link>
+                <div className="flex flex-col gap-3 w-full">
+                    <Button asChild size="lg" className="w-full font-bold">
+                        <Link href={inboxHref}>
+                            <ArrowLeft className="mr-2 h-5 w-5" />
+                            Volver a mis votaciones
+                        </Link>
                     </Button>
-                    <Button asChild className="w-full">
-                        <Link href="/">Volver al Inicio</Link>
+                    <Button asChild variant="ghost" className="w-full">
+                        <Link href="/">
+                            <Home className="mr-2 h-4 w-4" />
+                            Ir al Inicio
+                        </Link>
                     </Button>
                 </div>
             </CardContent>
