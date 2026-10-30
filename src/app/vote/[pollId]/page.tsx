@@ -1,3 +1,4 @@
+
 'use client';
 export const dynamic = 'force-dynamic';
 
@@ -6,7 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, doc, getDoc, getDocs, query, where, writeBatch, limit, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, writeBatch, limit, Timestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -129,13 +130,21 @@ function VotePageClient() {
         try {
             const batch = writeBatch(firestore);
 
+            // Shuffling: Redondeo de tiempo a bloques de 10 segundos para romper correlación temporal
+            const now = Date.now();
+            const rounded = Math.floor(now / 10000) * 10000;
+            // Aseguramos que el voto no sea anterior a la activación de la encuesta para cumplir reglas de seguridad
+            const activatedMillis = poll.activatedAt?.toMillis() || now;
+            const createdAtMillis = Math.max(rounded, activatedMillis);
+            const createdAt = Timestamp.fromMillis(createdAtMillis);
+
             const votesRef = collection(firestore, 'admins', adminId, 'polls', pollId, 'votes');
-            const newVoteRef = doc(votesRef);
+            const newVoteRef = doc(votesRef); // ID automático generado por Firebase
             batch.set(newVoteRef, {
                 pollId: poll.id,
                 adminId: adminId,
                 selectedOptions: Array.isArray(values.selectedOptions) ? values.selectedOptions : [values.selectedOptions],
-                createdAt: serverTimestamp(),
+                createdAt: createdAt,
             });
 
             const voterRef = doc(firestore, 'admins', adminId, 'polls', pollId, 'voters', voterDocId);

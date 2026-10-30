@@ -28,7 +28,25 @@ service cloud.firestore {
 
       match /votes/{voteId} {
         allow list, get: if isAuthorizedAdmin(adminId);
-        allow create: if true;
+        allow create: if 
+          // 1. La votación debe estar activa
+          get(/databases/$(database)/documents/admins/$(adminId)/polls/$(pollId)).data.status == 'active' &&
+          // 2. Solo campos permitidos
+          request.resource.data.keys().hasOnly(['selectedOptions', 'pollId', 'adminId', 'createdAt']) &&
+          // 3. Validación de opciones según tipo de votación
+          request.resource.data.selectedOptions is list &&
+          (
+            (get(/databases/$(database)/documents/admins/$(adminId)/polls/$(pollId)).data.pollType == 'simple' && 
+             request.resource.data.selectedOptions.size() == 1) ||
+            (get(/databases/$(database)/documents/admins/$(adminId)/polls/$(pollId)).data.pollType == 'multiple' && 
+             request.resource.data.selectedOptions.size() >= 1 && 
+             request.resource.data.selectedOptions.size() <= get(/databases/$(database)/documents/admins/$(adminId)/polls/$(pollId)).data.maxSelections)
+          ) &&
+          // 4. Validación de tiempo (Shuffling compatible)
+          request.resource.data.createdAt is timestamp &&
+          request.resource.data.createdAt >= get(/databases/$(database)/documents/admins/$(adminId)/polls/$(pollId)).data.activatedAt &&
+          request.resource.data.createdAt <= request.time + duration.value(30, 's');
+
         allow update, delete: if isAuthorizedAdmin(adminId);
       }
 
