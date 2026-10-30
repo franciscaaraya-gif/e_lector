@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useUser, useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc, collection, updateDoc, writeBatch, getDocs, serverTimestamp } from 'firebase/firestore';
+import { doc, collection, updateDoc, writeBatch, getDocs, serverTimestamp, query } from 'firebase/firestore';
 import { Poll, VoterGroup, VoterInfo, VoterStatus } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -328,10 +328,12 @@ export default function PollDetailsPage() {
 
   const { data: votersStatus, isLoading: votersStatusLoading } = useCollection<VoterStatus>(votersStatusRef);
 
+  // OPTIMIZACIÓN: Solo descargar todos los grupos si la encuesta está en estado 'pending'
   const allGroupsQuery = useMemoFirebase(() => {
-      if (!firestore || !user) return null;
+      if (!firestore || !user || poll?.status !== 'pending') return null;
       return collection(firestore, 'admins', user.uid, 'groups');
-  }, [firestore, user]);
+  }, [firestore, user, poll?.status]);
+  
   const { data: allGroups, isLoading: allGroupsLoading } = useCollection<VoterGroup>(allGroupsQuery);
 
   useEffect(() => {
@@ -413,7 +415,7 @@ export default function PollDetailsPage() {
     }
   }
 
-  if (isUserLoading || pollLoading || votersStatusLoading || allGroupsLoading) {
+  if (isUserLoading || pollLoading || votersStatusLoading || (allGroupsLoading && poll?.status === 'pending')) {
     return <PollDetailsLoading />;
   }
 
