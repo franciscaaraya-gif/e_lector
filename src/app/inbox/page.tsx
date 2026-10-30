@@ -1,7 +1,7 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, QrCode } from 'lucide-react';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -25,12 +25,9 @@ function VoterInboxLanding() {
                         <AlertCircle className="h-8 w-8 text-primary" />
                     </div>
                     <CardTitle className="text-2xl font-headline">Enlace Requerido</CardTitle>
-                    <CardDescription>
-                        No se ha detectado una sala de votación. Por favor, utiliza el enlace directo proporcionado por el administrador o escanea el código QR oficial.
-                    </CardDescription>
                 </CardHeader>
                 <CardContent className="text-center text-sm text-muted-foreground italic">
-                    El acceso manual a salas ha sido deshabilitado por seguridad.
+                    Por favor, utiliza el enlace directo proporcionado por el administrador o escanea el código QR oficial.
                 </CardContent>
             </Card>
         );
@@ -38,18 +35,15 @@ function VoterInboxLanding() {
 
     return (
         <Card className="shadow-lg">
-            <CardHeader className="text-center">
+            <CardHeader className="text-center pb-2">
                 <QrCode className="mx-auto h-12 w-12 text-primary mb-2" />
                 <CardTitle className="text-2xl font-headline">Bandeja de Entrada</CardTitle>
-                <CardDescription>
-                    Escanea tu tarjeta de identificación o ingresa tu Número de Registro para ver las votaciones en la sala <strong>{salaId}</strong>.
-                </CardDescription>
             </CardHeader>
-            <CardContent>
-                <form action="/inbox/polls" method="GET" className="space-y-4">
+            <CardContent className="pt-4">
+                <form action="/inbox/polls" method="GET" className="space-y-6">
                     <input type="hidden" name="salaId" value={salaId} />
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium uppercase text-center block leading-tight">
+                    <div className="space-y-4">
+                        <label className="text-sm font-bold uppercase text-center block leading-tight px-2">
                             INGRESE N° DE REGISTRO<br />
                             <span className="text-[10px] text-muted-foreground font-normal uppercase">
                                 (SI NO LO CONOCE CONSULTE A LOS OFICIALES O REVISE EN SU PLACA)
@@ -59,13 +53,14 @@ function VoterInboxLanding() {
                             name="voterId"
                             value={voterId}
                             onChange={(e) => setVoterId(e.target.value)}
-                            className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-center"
+                            className="flex h-14 w-full rounded-md border border-input bg-background px-3 py-2 text-xl font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-center shadow-sm"
                             placeholder="Ej: 12345"
                             autoFocus
                             required
+                            autoComplete="off"
                         />
                     </div>
-                    <button type="submit" className="w-full bg-primary text-primary-foreground h-12 rounded-md font-bold shadow-md hover:bg-primary/90 transition-colors">
+                    <button type="submit" className="w-full bg-primary text-primary-foreground h-14 rounded-md font-bold shadow-md hover:bg-primary/90 transition-colors text-lg">
                         Ver mis votaciones
                     </button>
                 </form>

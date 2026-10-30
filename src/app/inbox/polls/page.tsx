@@ -118,7 +118,6 @@ function PollsInboxClient() {
         <div className="w-full space-y-6">
              <div className="text-center space-y-2">
                 <h1 className="text-2xl font-bold font-headline">Bandeja de Entrada</h1>
-                <p className="text-xs text-muted-foreground">Sala: {salaId}</p>
              </div>
 
             {!voterDocs || voterDocs.length === 0 ? (
