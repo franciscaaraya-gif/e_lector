@@ -94,7 +94,6 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
         const notVoted = enabled - voted;
         const voteDocsCount = votes ? votes.length : 0;
         
-        // Cuadraturas
         const salaCuadra = total === (enabled + disabled);
         const derechoCuadra = enabled === (voted + notVoted);
         const urnaCuadra = voted === voteDocsCount;
@@ -105,7 +104,6 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
     const filteredVoters = useMemo(() => {
         let list = mergedVoters;
         
-        // Durante la votación activa, solo mostramos los que faltan por votar
         if (poll.status === 'active') {
             list = list.filter(v => v.enabled && !v.hasVoted);
         }
@@ -171,7 +169,13 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                             <Cell key={`cell-${index}`} fill={entry.color} />
                                         ))}
                                     </Pie>
-                                    <Tooltip />
+                                    <Tooltip 
+                                        formatter={(value, name, props) => {
+                                            const payload = props?.payload;
+                                            if (!payload) return [value, name];
+                                            return [`${value} personas`, name];
+                                        }}
+                                    />
                                 </PieChart>
                             </ResponsiveContainer>
                         </div>
@@ -240,7 +244,6 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
             </div>
         )}
 
-        {/* Solo mostramos la tabla si NO está cerrada */}
         {poll.status !== 'closed' && (
             <Card>
                 <CardHeader>
@@ -368,14 +371,12 @@ export default function PollDetailsPage() {
 
   const { data: votersStatus, isLoading: votersStatusLoading } = useCollection<VoterStatus>(votersStatusRef);
 
-  // Monitorizamos los votos en tiempo real para las estadísticas de cuadratura
   const votesQuery = useMemoFirebase(() => {
       if (!firestore || !user || !pollId) return null;
       return collection(firestore, 'admins', user.uid, 'polls', pollId, 'votes');
   }, [firestore, user, pollId]);
   const { data: votes } = useCollection<Vote>(votesQuery);
 
-  // OPTIMIZACIÓN: Solo descargar todos los grupos si la encuesta está en estado 'pending'
   const allGroupsQuery = useMemoFirebase(() => {
       if (!firestore || !user || poll?.status !== 'pending') return null;
       return collection(firestore, 'admins', user.uid, 'groups');

@@ -72,7 +72,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         const notVoted = enabled - cast;
         const participation = enabled > 0 ? (cast / enabled) * 100 : 0;
 
-        // Cuadraturas
         const salaCuadra = universe === (enabled + disabled);
         const participaciónCuadra = enabled === (cast + notVoted);
 
@@ -95,13 +94,19 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             });
         });
 
-        const totalSelections = votes.length > 0 ? votes.reduce((acc, v) => acc + v.selectedOptions.length, 0) : 0;
+        // La base del 100% son las papeletas totales emitidas (votos totales)
+        const totalVotes = votes.length;
 
-        return poll.options.map(option => ({
-            name: option.text,
-            votes: results[option.id] || 0,
-            percentage: totalSelections > 0 ? ((results[option.id] || 0) / totalSelections) * 100 : 0,
-        })).sort((a, b) => b.votes - a.votes);
+        return poll.options.map(option => {
+            const count = results[option.id] || 0;
+            const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
+            return {
+                name: option.text,
+                votes: count,
+                percentage: percentage,
+                displayLabel: `${count} (${percentage.toFixed(1)}%)`, // Pre-formateado para robustez
+            };
+        }).sort((a, b) => b.votes - a.votes);
     }, [votes, poll.options]);
 
     const generatePDF = (isDetailed: boolean) => {
@@ -110,7 +115,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
 
-        // Título
         doc.setFontSize(18);
         doc.text("INFORME DE VOTACIÓN E-LECTOR", pageWidth / 2, 20, { align: 'center' });
         
@@ -120,7 +124,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text(`Fecha Apertura: ${poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 49);
         doc.text(`Fecha Cierre: ${poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 56);
 
-        // Tabla de Estadísticas (5 Contadores)
         doc.setFontSize(14);
         doc.text("Resumen de Participación", 20, 70);
         autoTable(doc, {
@@ -135,10 +138,9 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 `${stats.participation.toFixed(1)}%`
             ]],
             theme: 'grid',
-            headStyles: { fillColor: [37, 56, 118] } // primary deep blue
+            headStyles: { fillColor: [37, 56, 118] }
         });
 
-        // Líneas de Cuadratura en el PDF
         const finalYStats = (doc as any).lastAutoTable.finalY;
         doc.setFontSize(10);
         doc.setTextColor(100);
@@ -146,7 +148,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text(`Cuadratura Voto: ${stats.enabled} (Derecho) = ${stats.cast} (Votaron) + ${stats.notVoted} (No Votaron)`, 20, finalYStats + 16);
         
         if (stats.notVoted > 0) {
-            doc.setTextColor(200, 100, 0); // Warning color
+            doc.setTextColor(200, 100, 0);
             doc.text(`${stats.notVoted} voluntarios habilitados no votaron.`, 20, finalYStats + 22);
         } else {
             doc.setTextColor(0, 150, 0);
@@ -154,7 +156,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         }
         doc.setTextColor(0);
 
-        // Tabla de Resultados
         doc.setFontSize(14);
         doc.text("Resultados por Opción", 20, finalYStats + 35);
         autoTable(doc, {
@@ -165,7 +166,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             headStyles: { fillColor: [37, 56, 118] }
         });
 
-        // Detalle de Votantes (Solo si es detallado)
         if (isDetailed) {
             doc.addPage();
             doc.text("Anexo de Auditoría: Registro de Votantes", 20, 20);
@@ -326,22 +326,25 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                     <Tooltip
                                         cursor={{ fill: "hsl(var(--muted))" }}
                                         content={<ChartTooltipContent 
-                                            formatter={(value, name, item) => (
-                                                <div className="flex flex-col">
-                                                    <span className="font-bold">{(item as any).payload.name}</span>
-                                                    <span>{value} Votos ({ (item as any).payload.percentage.toFixed(1)}%)</span>
-                                                </div>
-                                            )}
+                                            formatter={(value, name, item) => {
+                                                const payload = item?.payload;
+                                                if (!payload) return null;
+                                                return (
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold">{payload.name}</span>
+                                                        <span>{value} Votos ({payload.percentage?.toFixed(1) || '0.0'}%)</span>
+                                                    </div>
+                                                );
+                                            }}
                                             hideIndicator
                                             hideLabel 
                                         />}
                                     />
                                     <Bar dataKey="votes" radius={4} fill="hsl(var(--primary))">
                                          <LabelList 
-                                            dataKey="votes" 
+                                            dataKey="displayLabel" 
                                             position="right" 
                                             style={{ fill: 'hsl(var(--foreground))', fontSize: '12px', fontWeight: 'bold' }} 
-                                            formatter={(value: number, entry: any) => `${value} (${entry.payload.percentage.toFixed(1)}%)`}
                                          />
                                     </Bar>
                                 </BarChart>
