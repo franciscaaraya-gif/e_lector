@@ -27,7 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/AlertDialog";
+} from "@/components/ui/alert-dialog";
 import {
   Dialog,
   DialogContent,
@@ -574,7 +574,7 @@ export default function PollDetailsPage() {
                           Activar Votación Ahora
                       </Button>
                   </CardContent>
-              </div>
+              </Card>
           </div>
       )}
       
