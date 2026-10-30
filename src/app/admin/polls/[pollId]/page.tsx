@@ -3,12 +3,12 @@
 import { useParams } from 'next/navigation';
 import { useUser, useDoc, useCollection, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc, collection, updateDoc, writeBatch, getDocs, serverTimestamp, query } from 'firebase/firestore';
-import { Poll, VoterGroup, VoterInfo, VoterStatus } from '@/lib/types';
+import { Poll, VoterGroup, VoterInfo, VoterStatus, Vote } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck, UserX, Search, Vote as VoteIcon } from 'lucide-react';
+import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck, UserX, Search, Vote as VoteIcon, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +39,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { PollResultsDialog } from '@/components/admin/PollResultsDialog';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { cn } from '@/lib/utils';
 
 const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
   pending: 'outline',
@@ -61,7 +62,7 @@ type MergedVoter = {
     enabled: boolean;
 };
 
-function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStatus[] }) {
+function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: VoterStatus[], votes: Vote[] | null }) {
     const firestore = useFirestore();
     const { user } = useUser();
     const { toast } = useToast();
@@ -90,9 +91,16 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
         const enabled = mergedVoters.filter(v => v.enabled).length;
         const disabled = total - enabled;
         const voted = mergedVoters.filter(v => v.enabled && v.hasVoted).length;
-        const pending = enabled - voted;
-        return { total, enabled, disabled, voted, pending };
-    }, [mergedVoters]);
+        const notVoted = enabled - voted;
+        const voteDocsCount = votes ? votes.length : 0;
+        
+        // Cuadraturas
+        const salaCuadra = total === (enabled + disabled);
+        const derechoCuadra = enabled === (voted + notVoted);
+        const urnaCuadra = voted === voteDocsCount;
+
+        return { total, enabled, disabled, voted, notVoted, voteDocsCount, salaCuadra, derechoCuadra, urnaCuadra };
+    }, [mergedVoters, votes]);
 
     const filteredVoters = useMemo(() => {
         let list = mergedVoters;
@@ -135,7 +143,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
 
     const chartData = [
         { name: 'Votaron', value: stats.voted, color: 'hsl(var(--primary))' },
-        { name: 'Pendientes', value: stats.pending, color: 'hsl(var(--muted-foreground)/0.2)' }
+        { name: 'Pendientes', value: stats.notVoted, color: 'hsl(var(--muted-foreground)/0.2)' }
     ];
 
     if (!votersStatus || (poll.status === 'pending' && !poll.groupId)) return null;
@@ -143,7 +151,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
     return (
       <div className="space-y-6">
         {(poll.status === 'active' || poll.status === 'closed') && (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 <Card className="lg:col-span-1">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">Participación Real</CardTitle>
@@ -169,31 +177,63 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
                         </div>
                         <div className="text-center mt-2">
                             <p className="text-3xl font-bold">{stats.enabled > 0 ? Math.round((stats.voted / stats.enabled) * 100) : 0}%</p>
-                            <p className="text-xs text-muted-foreground">Quórum Alcanzado</p>
+                            <p className="text-xs text-muted-foreground">Participación</p>
                         </div>
                     </CardContent>
                 </Card>
 
-                <Card className="lg:col-span-2">
+                <Card className="lg:col-span-3">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg"><Users className="h-5 w-5" /> Estadísticas de Sala</CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground uppercase font-bold">En Sala</p>
-                            <p className="text-2xl font-bold">{stats.total}</p>
+                    <CardContent className="space-y-6">
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                            <div className="space-y-1">
+                                <p className="text-[10px] text-muted-foreground uppercase font-bold">En Sala</p>
+                                <p className="text-2xl font-bold">{stats.total}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] text-green-600 uppercase font-bold">Con Derecho</p>
+                                <p className="text-2xl font-bold text-green-700">{stats.enabled}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] text-red-600 uppercase font-bold">No Habilitados</p>
+                                <p className="text-2xl font-bold text-red-700">{stats.disabled}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-[10px] text-primary uppercase font-bold">Votaron</p>
+                                <p className="text-2xl font-bold text-primary">{stats.voted}</p>
+                            </div>
+                            <div className="space-y-1">
+                                <p className={cn("text-[10px] uppercase font-bold", poll.status === 'closed' && stats.notVoted > 0 ? "text-orange-600" : "text-muted-foreground")}>No Votaron</p>
+                                <p className={cn("text-2xl font-bold", poll.status === 'closed' && stats.notVoted > 0 ? "text-orange-700" : "")}>{stats.notVoted}</p>
+                            </div>
                         </div>
-                        <div className="space-y-1">
-                            <p className="text-xs text-green-600 uppercase font-bold">Con Derecho</p>
-                            <p className="text-2xl font-bold text-green-700">{stats.enabled}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-xs text-red-600 uppercase font-bold">No Habilitados</p>
-                            <p className="text-2xl font-bold text-red-700">{stats.disabled}</p>
-                        </div>
-                        <div className="space-y-1">
-                            <p className="text-xs text-primary uppercase font-bold">Votaron</p>
-                            <p className="text-2xl font-bold text-primary">{stats.voted}</p>
+
+                        <div className="pt-4 border-t space-y-2">
+                             <div className={cn("flex items-center gap-2 text-xs font-medium", !stats.salaCuadra ? "text-destructive" : "text-muted-foreground")}>
+                                <div className={cn("h-1.5 w-1.5 rounded-full", stats.salaCuadra ? "bg-green-500" : "bg-destructive animate-pulse")} />
+                                Cuadratura Sala: {stats.total} (En sala) = {stats.enabled} (Habilitados) + {stats.disabled} (No habilitados)
+                                {!stats.salaCuadra && <span className="font-bold ml-2">⚠️ Los totales no cuadran (Dif: {Math.abs(stats.total - (stats.enabled + stats.disabled))})</span>}
+                             </div>
+                             <div className={cn("flex items-center gap-2 text-xs font-medium", !stats.derechoCuadra ? "text-destructive" : "text-muted-foreground")}>
+                                <div className={cn("h-1.5 w-1.5 rounded-full", stats.derechoCuadra ? "bg-green-500" : "bg-destructive animate-pulse")} />
+                                Cuadratura Voto: {stats.enabled} (Con derecho) = {stats.voted} (Votaron) + {stats.notVoted} (No votaron)
+                                {!stats.derechoCuadra && <span className="font-bold ml-2">⚠️ Los totales no cuadran (Dif: {Math.abs(stats.enabled - (stats.voted + stats.notVoted))})</span>}
+                             </div>
+                             {poll.status === 'closed' && (
+                                <div className={cn("flex items-center gap-2 text-xs font-bold", stats.notVoted > 0 ? "text-orange-600" : "text-green-600")}>
+                                    <AlertTriangle className={cn("h-3.5 w-3.5", stats.notVoted === 0 && "hidden")} />
+                                    {stats.notVoted > 0 ? `${stats.notVoted} voluntarios habilitados no votaron.` : "Todos los habilitados votaron."}
+                                </div>
+                             )}
+                             {votes && (
+                                <div className={cn("flex items-center gap-2 text-xs font-bold", !stats.urnaCuadra ? "text-destructive" : "text-muted-foreground/60")}>
+                                    <div className={cn("h-1.5 w-1.5 rounded-full", stats.urnaCuadra ? "bg-green-500" : "bg-destructive animate-pulse")} />
+                                    Integridad Urna: {stats.voted} (Votantes marcados) vs {stats.voteDocsCount} (Votos en urna)
+                                    {!stats.urnaCuadra && <span className="font-bold ml-2">⚠️ Los votos no cuadran con los votantes (Dif: {Math.abs(stats.voted - stats.voteDocsCount)})</span>}
+                                </div>
+                             )}
                         </div>
                     </CardContent>
                 </Card>
@@ -327,6 +367,13 @@ export default function PollDetailsPage() {
   }, [firestore, user, pollId]);
 
   const { data: votersStatus, isLoading: votersStatusLoading } = useCollection<VoterStatus>(votersStatusRef);
+
+  // Monitorizamos los votos en tiempo real para las estadísticas de cuadratura
+  const votesQuery = useMemoFirebase(() => {
+      if (!firestore || !user || !pollId) return null;
+      return collection(firestore, 'admins', user.uid, 'polls', pollId, 'votes');
+  }, [firestore, user, pollId]);
+  const { data: votes } = useCollection<Vote>(votesQuery);
 
   // OPTIMIZACIÓN: Solo descargar todos los grupos si la encuesta está en estado 'pending'
   const allGroupsQuery = useMemoFirebase(() => {
@@ -535,7 +582,7 @@ export default function PollDetailsPage() {
       )}
       
       {votersStatus && (
-          <VoterList poll={poll} votersStatus={votersStatus} />
+          <VoterList poll={poll} votersStatus={votersStatus} votes={votes || null} />
       )}
       
       <PollResultsDialog poll={poll} open={showResults} onOpenChange={setShowResults} />

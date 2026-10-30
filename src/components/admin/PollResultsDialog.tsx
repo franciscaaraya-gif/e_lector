@@ -24,7 +24,7 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download, ChevronDown } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download, ChevronDown, ShieldCheck, AlertTriangle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "../ui/button";
 import {
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { cn } from "@/lib/utils";
 
 interface PollResultsDialogProps {
   poll: Poll;
@@ -68,9 +69,14 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         const enabled = votersStatus.filter(v => v.enabled !== false).length;
         const disabled = universe - enabled;
         const cast = votes.length;
+        const notVoted = enabled - cast;
         const participation = enabled > 0 ? (cast / enabled) * 100 : 0;
 
-        return { universe, enabled, disabled, cast, participation };
+        // Cuadraturas
+        const salaCuadra = universe === (enabled + disabled);
+        const participaciónCuadra = enabled === (cast + notVoted);
+
+        return { universe, enabled, disabled, cast, notVoted, participation, salaCuadra, participaciónCuadra };
     }, [votersStatus, votes]);
 
     const chartData = useMemo(() => {
@@ -114,27 +120,45 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text(`Fecha Apertura: ${poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 49);
         doc.text(`Fecha Cierre: ${poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 56);
 
-        // Tabla de Estadísticas
+        // Tabla de Estadísticas (5 Contadores)
         doc.setFontSize(14);
         doc.text("Resumen de Participación", 20, 70);
         autoTable(doc, {
             startY: 75,
-            head: [['Universo', 'Habilitados', 'No Habilitados', 'Votos Emitidos', 'Participación']],
+            head: [['En Sala', 'Con Derecho', 'No Habil.', 'Votaron', 'No Votaron', 'Part. Real']],
             body: [[
                 stats.universe, 
                 stats.enabled, 
                 stats.disabled, 
                 stats.cast, 
+                stats.notVoted,
                 `${stats.participation.toFixed(1)}%`
             ]],
             theme: 'grid',
             headStyles: { fillColor: [37, 56, 118] } // primary deep blue
         });
 
+        // Líneas de Cuadratura en el PDF
+        const finalYStats = (doc as any).lastAutoTable.finalY;
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text(`Cuadratura Sala: ${stats.universe} (Sala) = ${stats.enabled} (Habilitados) + ${stats.disabled} (No Habilitados)`, 20, finalYStats + 10);
+        doc.text(`Cuadratura Voto: ${stats.enabled} (Derecho) = ${stats.cast} (Votaron) + ${stats.notVoted} (No Votaron)`, 20, finalYStats + 16);
+        
+        if (stats.notVoted > 0) {
+            doc.setTextColor(200, 100, 0); // Warning color
+            doc.text(`${stats.notVoted} voluntarios habilitados no votaron.`, 20, finalYStats + 22);
+        } else {
+            doc.setTextColor(0, 150, 0);
+            doc.text(`Todos los habilitados votaron.`, 20, finalYStats + 22);
+        }
+        doc.setTextColor(0);
+
         // Tabla de Resultados
-        doc.text("Resultados por Opción", 20, (doc as any).lastAutoTable.finalY + 15);
+        doc.setFontSize(14);
+        doc.text("Resultados por Opción", 20, finalYStats + 35);
         autoTable(doc, {
-            startY: (doc as any).lastAutoTable.finalY + 20,
+            startY: finalYStats + 40,
             head: [['Opción', 'Votos Recibidos', 'Porcentaje']],
             body: chartData.map(item => [item.name, item.votes, `${item.percentage.toFixed(1)}%`]),
             theme: 'striped',
@@ -172,7 +196,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-3xl max-h-[95dvh] overflow-y-auto">
+            <DialogContent className="sm:max-w-4xl max-h-[95dvh] overflow-y-auto">
                 <DialogHeader className="flex flex-row items-start justify-between gap-4 pr-8">
                     <div className="space-y-1">
                         <DialogTitle className="text-xl">Informe de Votación</DialogTitle>
@@ -221,26 +245,59 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                     {isLoading ? (
                         <div className="space-y-2"><Skeleton className="h-20 w-full" /><Skeleton className="h-20 w-full" /></div>
                     ) : stats && (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div className="text-center border rounded-lg p-3">
-                                <div className="flex justify-center mb-1"><Users className="h-4 w-4 text-muted-foreground" /></div>
-                                <div className="text-xl font-bold">{stats.universe}</div>
-                                <div className="text-[10px] text-muted-foreground uppercase">Universo</div>
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                <div className="text-center border rounded-lg p-3">
+                                    <div className="flex justify-center mb-1"><Users className="h-4 w-4 text-muted-foreground" /></div>
+                                    <div className="text-xl font-bold">{stats.universe}</div>
+                                    <div className="text-[10px] text-muted-foreground uppercase">En Sala</div>
+                                </div>
+                                <div className="text-center border rounded-lg p-3 bg-green-50/50 border-green-100">
+                                    <div className="flex justify-center mb-1"><UserCheck className="h-4 w-4 text-green-600" /></div>
+                                    <div className="text-xl font-bold text-green-700">{stats.enabled}</div>
+                                    <div className="text-[10px] text-green-600 uppercase">Con Derecho</div>
+                                </div>
+                                <div className="text-center border rounded-lg p-3 bg-red-50/50 border-red-100">
+                                    <div className="flex justify-center mb-1"><UserX className="h-4 w-4 text-red-600" /></div>
+                                    <div className="text-xl font-bold text-red-700">{stats.disabled}</div>
+                                    <div className="text-[10px] text-red-600 uppercase">No Habil.</div>
+                                </div>
+                                <div className="text-center border rounded-lg p-3 bg-primary/5 border-primary/20">
+                                    <div className="flex justify-center mb-1"><VoteIcon className="h-4 w-4 text-primary" /></div>
+                                    <div className="text-xl font-bold text-primary">{stats.cast}</div>
+                                    <div className="text-[10px] text-primary uppercase">Votaron ({stats.participation.toFixed(1)}%)</div>
+                                </div>
+                                <div className={cn("text-center border rounded-lg p-3", stats.notVoted > 0 ? "bg-orange-50 border-orange-200" : "bg-muted/30")}>
+                                    <div className="flex justify-center mb-1"><Users className={cn("h-4 w-4", stats.notVoted > 0 ? "text-orange-600" : "text-muted-foreground")} /></div>
+                                    <div className={cn("text-xl font-bold", stats.notVoted > 0 ? "text-orange-700" : "")}>{stats.notVoted}</div>
+                                    <div className={cn("text-[10px] uppercase", stats.notVoted > 0 ? "text-orange-600" : "text-muted-foreground")}>No Votaron</div>
+                                </div>
                             </div>
-                            <div className="text-center border rounded-lg p-3 bg-green-50/50 border-green-100">
-                                <div className="flex justify-center mb-1"><UserCheck className="h-4 w-4 text-green-600" /></div>
-                                <div className="text-xl font-bold text-green-700">{stats.enabled}</div>
-                                <div className="text-[10px] text-green-600 uppercase">Habilitados</div>
-                            </div>
-                            <div className="text-center border rounded-lg p-3 bg-red-50/50 border-red-100">
-                                <div className="flex justify-center mb-1"><UserX className="h-4 w-4 text-red-600" /></div>
-                                <div className="text-xl font-bold text-red-700">{stats.disabled}</div>
-                                <div className="text-[10px] text-red-600 uppercase">No Habilitados</div>
-                            </div>
-                            <div className="text-center border rounded-lg p-3 bg-primary/5 border-primary/20">
-                                <div className="flex justify-center mb-1"><VoteIcon className="h-4 w-4 text-primary" /></div>
-                                <div className="text-xl font-bold text-primary">{stats.cast}</div>
-                                <div className="text-[10px] text-primary uppercase">Votaron ({stats.participation.toFixed(1)}%)</div>
+
+                            <div className="bg-muted/20 p-3 rounded-md border space-y-2">
+                                <div className={cn("flex items-center gap-2 text-xs font-medium", !stats.salaCuadra ? "text-destructive" : "text-muted-foreground")}>
+                                    <div className={cn("h-1.5 w-1.5 rounded-full", stats.salaCuadra ? "bg-green-500" : "bg-destructive animate-pulse")} />
+                                    Cuadratura Sala: {stats.universe} (Sala) = {stats.enabled} (Habilitados) + {stats.disabled} (No Habilitados)
+                                    {!stats.salaCuadra && <span className="font-bold ml-2">⚠️ Los totales no cuadran</span>}
+                                </div>
+                                <div className={cn("flex items-center gap-2 text-xs font-medium", !stats.participaciónCuadra ? "text-destructive" : "text-muted-foreground")}>
+                                    <div className={cn("h-1.5 w-1.5 rounded-full", stats.participaciónCuadra ? "bg-green-500" : "bg-destructive animate-pulse")} />
+                                    Cuadratura Voto: {stats.enabled} (Derecho) = {stats.cast} (Votaron) + {stats.notVoted} (No Votaron)
+                                    {!stats.participaciónCuadra && <span className="font-bold ml-2">⚠️ Los totales no cuadran</span>}
+                                </div>
+                                <div className={cn("flex items-center gap-2 text-xs font-bold", stats.notVoted > 0 ? "text-orange-600" : "text-green-600")}>
+                                    {stats.notVoted > 0 ? (
+                                        <>
+                                            <AlertTriangle className="h-3.5 w-3.5" />
+                                            {stats.notVoted} voluntarios habilitados no votaron.
+                                        </>
+                                    ) : (
+                                        <>
+                                            <ShieldCheck className="h-3.5 w-3.5" />
+                                            Todos los habilitados votaron.
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
