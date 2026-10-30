@@ -3,11 +3,19 @@
 import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertCircle, QrCode } from 'lucide-react';
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 function VoterInboxLanding() {
     const searchParams = useSearchParams();
     const salaId = searchParams.get('salaId');
+    const voterIdParam = searchParams.get('voterId');
+    const [voterId, setVoterId] = useState('');
+
+    useEffect(() => {
+        if (voterIdParam) {
+            setVoterId(voterIdParam);
+        }
+    }, [voterIdParam]);
 
     if (!salaId) {
         return (
@@ -43,12 +51,14 @@ function VoterInboxLanding() {
                     <div className="space-y-2">
                         <label className="text-sm font-medium uppercase text-center block leading-tight">
                             INGRESE N° DE REGISTRO<br />
-                            <span className="text-[10px] text-muted-foreground font-normal">
+                            <span className="text-[10px] text-muted-foreground font-normal uppercase">
                                 (SI NO LO CONOCE CONSULTE A LOS OFICIALES O REVISE EN SU PLACA)
                             </span>
                         </label>
                         <input 
                             name="voterId"
+                            value={voterId}
+                            onChange={(e) => setVoterId(e.target.value)}
                             className="flex h-12 w-full rounded-md border border-input bg-background px-3 py-2 text-lg font-mono focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary text-center"
                             placeholder="Ej: 12345"
                             autoFocus
