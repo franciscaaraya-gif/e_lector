@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { cn } from "@/lib/utils";
+import { cn, sortPeople, formatFullName } from "@/lib/utils";
 
 interface PollResultsDialogProps {
   poll: Poll;
@@ -94,7 +94,6 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             });
         });
 
-        // La base del 100% son las papeletas totales emitidas (votos totales)
         const totalVotes = votes.length;
 
         return poll.options.map(option => {
@@ -104,13 +103,17 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 name: option.text,
                 votes: count,
                 percentage: percentage,
-                displayLabel: `${count} (${percentage.toFixed(1)}%)`, // Pre-formateado para robustez
+                displayLabel: `${count} (${percentage.toFixed(1)}%)`,
             };
         }).sort((a, b) => b.votes - a.votes);
     }, [votes, poll.options]);
 
+    const sortedVotersStatus = useMemo(() => {
+        return sortPeople(votersStatus, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
+    }, [votersStatus]);
+
     const generatePDF = (isDetailed: boolean) => {
-        if (!stats || !votersStatus) return;
+        if (!stats || !sortedVotersStatus) return;
 
         const doc = new jsPDF();
         const pageWidth = doc.internal.pageSize.getWidth();
@@ -168,13 +171,13 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
 
         if (isDetailed) {
             doc.addPage();
+            doc.setFontSize(16);
             doc.text("Anexo de Auditoría: Registro de Votantes", 20, 20);
             autoTable(doc, {
                 startY: 25,
-                head: [['Nombres', 'Apellidos', 'Habilitación', '¿Votó?']],
-                body: votersStatus.map(v => [
-                    v.nombre || '', 
-                    v.apellido || '', 
+                head: [['Nombre Completo', 'Habilitación', '¿Votó?']],
+                body: sortedVotersStatus.map(v => [
+                    formatFullName(v.nombre, v.apellido), 
                     v.enabled !== false ? 'Habilitado' : 'No Habilitado',
                     v.hasVoted ? 'SÍ' : 'NO'
                 ]),

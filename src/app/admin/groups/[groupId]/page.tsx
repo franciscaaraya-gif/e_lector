@@ -45,6 +45,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { sortPeople, formatFullName } from '@/lib/utils';
 
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
@@ -84,15 +85,22 @@ export default function GroupDetailsPage() {
 
   const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
 
-  // Search logic for UI preview (Privacy: ID search disabled)
+  // Search logic for UI preview
   const searchResults = useMemo(() => {
     if (!searchId.trim() || !personnel || searchId.trim().length < 2) return [];
     const search = searchId.trim().toLowerCase();
     
-    return personnel.filter(p => 
-      `${p.nombres} ${p.apellidos}`.toLowerCase().includes(search)
-    ).slice(0, 5);
+    const filtered = personnel.filter(p => 
+      `${p.apellidos} ${p.nombres}`.toLowerCase().includes(search)
+    );
+
+    return sortPeople(filtered, (p) => ({ nombres: p.nombres, apellidos: p.apellidos })).slice(0, 10);
   }, [searchId, personnel]);
+
+  const sortedMembers = useMemo(() => {
+    if (!group?.voters) return [];
+    return sortPeople(group.voters, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
+  }, [group?.voters]);
 
   const addVoterToGroup = async (voter: VoterInfo) => {
     if (!group || !groupRef) return;
@@ -264,12 +272,12 @@ export default function GroupDetailsPage() {
                 <Search className="h-5 w-5 text-primary" />
                 Enrolamiento
               </CardTitle>
-              <CardDescription>Busca por nombre para agregar.</CardDescription>
+              <CardDescription>Busca por apellido o nombre para agregar.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="relative">
                 <Input 
-                  placeholder="Buscar por nombre..." 
+                  placeholder="Buscar voluntario..." 
                   className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
@@ -294,10 +302,9 @@ export default function GroupDetailsPage() {
                           disabled={isUpdating}
                         >
                           <div className="min-w-0">
-                            <p className="font-bold text-sm truncate">{voter.nombres} {voter.apellidos}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">
+                            <p className="font-bold text-sm truncate">{formatFullName(voter.nombres, voter.apellidos)}</p>
+                            <p className="text-[10px] text-muted-foreground truncate uppercase">
                                 {voter.tipo}
-                                {showIds && <span className="ml-2 font-mono text-primary">| {voter.regGeneral || voter.id}</span>}
                             </p>
                           </div>
                           <Check className="h-4 w-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -375,7 +382,7 @@ export default function GroupDetailsPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      group.voters.map((voter) => (
+                      sortedMembers.map((voter) => (
                         <TableRow key={voter.id}>
                           {showIds && (
                              <TableCell className="font-mono text-xs">
@@ -384,12 +391,12 @@ export default function GroupDetailsPage() {
                                 </span>
                              </TableCell>
                           )}
-                          <TableCell>{voter.nombre} {voter.apellido}</TableCell>
+                          <TableCell className="font-medium">{formatFullName(voter.nombre, voter.apellido)}</TableCell>
                           <TableCell className="text-right">
                             <Button 
                               variant="ghost" 
                               size="icon" 
-                              className="text-destructive hover:bg-destructive/10"
+                              className="text-destructive hover:bg-destructive/10" 
                               onClick={() => removeVoterFromGroup(voter.id)}
                               disabled={isUpdating}
                             >

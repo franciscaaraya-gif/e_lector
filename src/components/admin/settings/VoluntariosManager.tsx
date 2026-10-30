@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { sortPeople, formatFullName } from '@/lib/utils';
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -42,6 +43,10 @@ export function VoluntariosManager() {
   }, [firestore, user]);
 
   const { data: personal, isLoading: isLoadingPersonal } = useCollection<ListaCompletaItem>(personalQuery);
+
+  const sortedPersonal = useMemo(() => {
+    return sortPeople(personal, (p) => ({ nombres: p.nombres, apellidos: p.apellidos }));
+  }, [personal]);
 
   const headersPersonal = "Registro,Rut,Digito,Nombre,Segundo Nombre,Primer Apellido,Segundo Apellido,Sangre Grupo,Sangre Rh,Calidad,Cargo";
   const headersRfid = "Registro,TarjetaID";
@@ -220,16 +225,18 @@ export function VoluntariosManager() {
                 <TableHeader>
                     <TableRow>
                         {showIds && <TableHead className="w-24">Reg.</TableHead>}
-                        <TableHead>Nombre</TableHead>
+                        <TableHead>Nombre Completo</TableHead>
                         <TableHead>Tipo</TableHead>
                         <TableHead>RFID</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {personal?.map(p => (
+                    {sortedPersonal?.map(p => (
                         <TableRow key={p.id}>
                             {showIds && <TableCell className="font-mono text-xs">{p.regGeneral}</TableCell>}
-                            <TableCell className="text-xs">{p.nombres} {p.apellidos}</TableCell>
+                            <TableCell className="text-xs font-medium">
+                                {formatFullName(p.nombres, p.apellidos)}
+                            </TableCell>
                             <TableCell className="text-xs">{p.tipo}</TableCell>
                             <TableCell className="text-xs">
                                 {p.rfid ? <Badge variant="secondary" className="bg-green-100 text-green-800"><Check className="h-3 w-3 mr-1" /> {p.rfid}</Badge> : '-'}

@@ -27,7 +27,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@/AlertDialog";
 import {
   Dialog,
   DialogContent,
@@ -39,7 +39,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { PollResultsDialog } from '@/components/admin/PollResultsDialog';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { cn } from '@/lib/utils';
+import { cn, sortPeople, formatFullName } from '@/lib/utils';
 
 const statusVariant: { [key: string]: 'default' | 'secondary' | 'outline' } = {
   pending: 'outline',
@@ -70,20 +70,16 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
     
     const mergedVoters = useMemo(() => {
         if (!votersStatus) return [];
-        return votersStatus.map(v => ({
+        const baseList = votersStatus.map(v => ({
             id: v.voterId,
             nombre: v.nombre || '',
             apellido: v.apellido || '',
             hasVoted: v.hasVoted,
             statusDocId: v.id,
             enabled: v.enabled !== false,
-        })).sort((a, b) => {
-            const apellidoA = a.apellido.toLowerCase();
-            const apellidoB = b.apellido.toLowerCase();
-            if (apellidoA < apellidoB) return -1;
-            if (apellidoA > apellidoB) return 1;
-            return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
-        });
+        }));
+        
+        return sortPeople(baseList, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
     }, [votersStatus]);
 
     const stats = useMemo(() => {
@@ -275,7 +271,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                         <Table>
                             <TableHeader>
                                 <TableRow className="bg-muted/50">
-                                    <TableHead>Nombre Completo (Apellido Apellido Nombres)</TableHead>
+                                    <TableHead>Nombre Completo</TableHead>
                                     {poll.status === 'pending' && <TableHead>Habilitación</TableHead>}
                                     {poll.status !== 'active' && <TableHead>¿Votó?</TableHead>}
                                     <TableHead className="text-right">Acciones</TableHead>
@@ -292,7 +288,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                     filteredVoters.map((voter) => (
                                         <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
                                             <TableCell className="font-medium">
-                                                <span className="uppercase font-bold">{voter.apellido}</span> {voter.nombre}
+                                                {formatFullName(voter.nombre, voter.apellido)}
                                             </TableCell>
                                             {poll.status === 'pending' && (
                                                 <TableCell>
@@ -578,7 +574,7 @@ export default function PollDetailsPage() {
                           Activar Votación Ahora
                       </Button>
                   </CardContent>
-              </Card>
+              </div>
           </div>
       )}
       

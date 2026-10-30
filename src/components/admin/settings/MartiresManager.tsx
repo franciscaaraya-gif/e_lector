@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -13,6 +13,7 @@ import { ListaCompletaItem } from '@/lib/types';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
+import { sortPeople, formatFullName } from '@/lib/utils';
 
 const formSchema = z.object({
   fullName: z.string().min(5, 'El nombre completo debe tener al menos 5 caracteres.'),
@@ -34,6 +35,10 @@ export function MartiresManager() {
   }, [firestore, user]);
 
   const { data: martires, isLoading } = useCollection<ListaCompletaItem>(martiresQuery);
+
+  const sortedMartires = useMemo(() => {
+    return sortPeople(martires, (m) => ({ nombres: m.nombres, apellidos: m.apellidos }));
+  }, [martires]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -84,12 +89,14 @@ export function MartiresManager() {
             <Skeleton className="h-10 w-full" />
           </div>
         )}
-        {!isLoading && martires && martires.length > 0 && (
+        {!isLoading && sortedMartires && sortedMartires.length > 0 && (
           <div className="border rounded-lg">
             <ul className="divide-y">
-              {martires.map(martir => (
+              {sortedMartires.map(martir => (
                 <li key={martir.id} className="flex items-center justify-between p-3">
-                  <span className="text-sm">{martir.nombres} {martir.apellidos}</span>
+                  <span className="text-sm font-medium">
+                    {formatFullName(martir.nombres, martir.apellidos)}
+                  </span>
                   <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDelete(martir.id, `${martir.nombres} ${martir.apellidos}`)}>
                     <X className="h-4 w-4 text-destructive" />
                   </Button>

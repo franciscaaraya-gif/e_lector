@@ -24,7 +24,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import { cn } from '@/lib/utils';
+import { cn, sortPeople, formatFullName } from '@/lib/utils';
 import { PollTemplate, ListaCompletaItem } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
@@ -61,12 +61,13 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
         const value = e.target.value;
         field.onChange(value); 
 
-        if (value.length >= 3) {
+        if (value.length >= 2) {
             const filtered = volunteers.filter(v =>
-                `${v.nombres} ${v.apellidos}`.toLowerCase().includes(value.toLowerCase())
+                `${v.apellidos} ${v.nombres}`.toLowerCase().includes(value.toLowerCase())
             );
-            setSuggestions(filtered);
-            setPopoverOpen(filtered.length > 0);
+            const sorted = sortPeople(filtered, (v) => ({ nombres: v.nombres, apellidos: v.apellidos }));
+            setSuggestions(sorted);
+            setPopoverOpen(sorted.length > 0);
         } else {
             setSuggestions([]);
             setPopoverOpen(false);
@@ -74,7 +75,7 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
     };
 
     const handleSuggestionClick = (volunteer: ListaCompletaItem) => {
-        const fullName = `${volunteer.nombres} ${volunteer.apellidos}`;
+        const fullName = formatFullName(volunteer.nombres, volunteer.apellidos);
         field.onChange(fullName);
         setPopoverOpen(false);
     };
@@ -104,7 +105,7 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
                                 handleSuggestionClick(v);
                             }}
                         >
-                            <span>{v.nombres} {v.apellidos}</span>
+                            <span>{formatFullName(v.nombres, v.apellidos)}</span>
                             <span className="text-[10px] text-muted-foreground uppercase">{v.tipo}</span>
                         </div>
                     ))}
