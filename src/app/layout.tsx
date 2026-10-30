@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { cn } from "@/lib/utils";
@@ -8,6 +8,20 @@ import { ForceBodyInteractive } from '@/components/ForceBodyInteractive'
 export const metadata: Metadata = {
   title: 'E-lector: Votación Digital Segura',
   description: 'Una plataforma de votación moderna, segura y anónima.',
+  applicationName: 'E-lector',
+  // iPhone: ícono al "Añadir a pantalla de inicio" y modo pantalla completa
+  icons: {
+    apple: '/icons/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'E-lector',
+    statusBarStyle: 'default',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#4051b5',
 };
 
 export default function RootLayout({
