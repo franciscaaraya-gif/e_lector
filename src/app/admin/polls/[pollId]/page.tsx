@@ -574,7 +574,7 @@ export default function PollDetailsPage() {
                           Activar Votación Ahora
                       </Button>
                   </CardContent>
-              </div>
+              </Card>
           </div>
       )}
       
