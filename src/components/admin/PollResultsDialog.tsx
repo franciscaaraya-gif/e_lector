@@ -1,4 +1,3 @@
-
 'use client';
 import {
   Bar,
@@ -7,6 +6,7 @@ import {
   YAxis,
   Tooltip,
   Cell,
+  LabelList,
 } from "recharts"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
 import { Poll, Vote, VoterStatus } from '@/lib/types';
@@ -24,10 +24,17 @@ import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Separator } from "../ui/separator";
-import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download } from "lucide-react";
+import { Info, UserCheck, UserX, Vote as VoteIcon, Clock, Users, Download, ChevronDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "../ui/button";
-import * as XLSX from 'xlsx';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface PollResultsDialogProps {
   poll: Poll;
@@ -91,54 +98,69 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         })).sort((a, b) => b.votes - a.votes);
     }, [votes, poll.options]);
 
-    const handleDownloadExcel = () => {
+    const generatePDF = (isDetailed: boolean) => {
         if (!stats || !votersStatus) return;
 
-        const wb = XLSX.utils.book_new();
-        
-        // 1. Hoja de Informe General
-        const reportInfo = [
-            ["INFORME DE VOTACIÓN E-LECTOR"],
-            [""],
-            ["Pregunta:", poll.question],
-            ["Estado:", poll.status === 'closed' ? "Cerrada" : "Finalizada"],
-            ["Fecha Activación:", poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
-            ["Fecha Cierre:", poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"],
-            [""],
-            ["RESUMEN ESTADÍSTICO"],
-            ["Universo de Votantes:", stats.universe],
-            ["Habilitados:", stats.enabled],
-            ["No Habilitados:", stats.disabled],
-            ["Votos Emitidos:", stats.cast],
-            ["Participación:", `${stats.participation.toFixed(1)}%`],
-            [""],
-            ["RESULTADOS POR OPCIÓN"],
-            ["Opción", "Votos Recibidos", "Porcentaje (%)"]
-        ];
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
 
-        chartData.forEach(item => {
-            reportInfo.push([item.name, item.votes.toString(), `${item.percentage.toFixed(1)}%`]);
+        // Título
+        doc.setFontSize(18);
+        doc.text("INFORME DE VOTACIÓN E-LECTOR", pageWidth / 2, 20, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.text(`Pregunta: ${poll.question}`, 20, 35);
+        doc.text(`Estado: ${poll.status === 'closed' ? 'Cerrada' : 'Finalizada'}`, 20, 42);
+        doc.text(`Fecha Apertura: ${poll.activatedAt ? format(poll.activatedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 49);
+        doc.text(`Fecha Cierre: ${poll.closedAt ? format(poll.closedAt.toDate(), "d MMM yyyy, HH:mm", { locale: es }) : "N/A"}`, 20, 56);
+
+        // Tabla de Estadísticas
+        doc.setFontSize(14);
+        doc.text("Resumen de Participación", 20, 70);
+        autoTable(doc, {
+            startY: 75,
+            head: [['Universo', 'Habilitados', 'No Habilitados', 'Votos Emitidos', 'Participación']],
+            body: [[
+                stats.universe, 
+                stats.enabled, 
+                stats.disabled, 
+                stats.cast, 
+                `${stats.participation.toFixed(1)}%`
+            ]],
+            theme: 'grid',
+            headStyles: { fillColor: [37, 56, 118] } // primary deep blue
         });
 
-        const wsReport = XLSX.utils.aoa_to_sheet(reportInfo);
-        wsReport['!cols'] = [{ wch: 30 }, { wch: 40 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, wsReport, "Informe de Resultados");
+        // Tabla de Resultados
+        doc.text("Resultados por Opción", 20, (doc as any).lastAutoTable.finalY + 15);
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 20,
+            head: [['Opción', 'Votos Recibidos', 'Porcentaje']],
+            body: chartData.map(item => [item.name, item.votes, `${item.percentage.toFixed(1)}%`]),
+            theme: 'striped',
+            headStyles: { fillColor: [37, 56, 118] }
+        });
 
-        // 2. Hoja de Detalle de Votantes
-        const voterHeaders = [["ID Votante", "Nombres", "Apellidos", "Estado Habilitación", "Emitió Voto"]];
-        const voterData = votersStatus.map(v => [
-            v.voterId,
-            v.nombre || '',
-            v.apellido || '',
-            v.enabled !== false ? 'Habilitado' : 'Deshabilitado',
-            v.hasVoted ? 'SÍ' : 'NO'
-        ]);
+        // Detalle de Votantes (Solo si es detallado)
+        if (isDetailed) {
+            doc.addPage();
+            doc.text("Anexo de Auditoría: Registro de Votantes", 20, 20);
+            autoTable(doc, {
+                startY: 25,
+                head: [['Nombres', 'Apellidos', 'Habilitación', '¿Votó?']],
+                body: votersStatus.map(v => [
+                    v.nombre || '', 
+                    v.apellido || '', 
+                    v.enabled !== false ? 'Habilitado' : 'No Habilitado',
+                    v.hasVoted ? 'SÍ' : 'NO'
+                ]),
+                theme: 'grid',
+                headStyles: { fillColor: [100, 100, 100] }
+            });
+        }
 
-        const wsVoters = XLSX.utils.aoa_to_sheet([...voterHeaders, ...voterData]);
-        wsVoters['!cols'] = [{ wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 20 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, wsVoters, "Lista de Votantes");
-
-        XLSX.writeFile(wb, `Informe_Votacion_${poll.id}.xlsx`);
+        const fileName = isDetailed ? `Informe_Detallado_${poll.id}.pdf` : `Informe_Simple_${poll.id}.pdf`;
+        doc.save(fileName);
     };
 
     const chartConfig = {
@@ -158,9 +180,22 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                            {poll.question}
                         </DialogDescription>
                     </div>
-                    <Button onClick={handleDownloadExcel} variant="outline" size="sm" className="shrink-0" disabled={isLoading}>
-                        <Download className="mr-2 h-4 w-4" /> Exportar a Excel
-                    </Button>
+                    
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="shrink-0" disabled={isLoading}>
+                                <Download className="mr-2 h-4 w-4" /> Descargar PDF <ChevronDown className="ml-2 h-3 w-3" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => generatePDF(false)}>
+                                Informe Simple (Solo resultados)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => generatePDF(true)}>
+                                Informe Detallado (Auditoría)
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
@@ -221,7 +256,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                             <p className="text-center text-muted-foreground pt-16 italic">Aún no hay votos registrados.</p>
                         ) : (
                             <ChartContainer config={chartConfig} className="w-full h-full">
-                                <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10, right: 30 }}>
+                                <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10, right: 60 }}>
                                     <XAxis type="number" hide />
                                     <YAxis
                                         dataKey="name"
@@ -244,10 +279,13 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                             hideLabel 
                                         />}
                                     />
-                                    <Bar dataKey="votes" radius={4}>
-                                         {chartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={index === 0 ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground)/0.4)'} />
-                                         ))}
+                                    <Bar dataKey="votes" radius={4} fill="hsl(var(--primary))">
+                                         <LabelList 
+                                            dataKey="votes" 
+                                            position="right" 
+                                            style={{ fill: 'hsl(var(--foreground))', fontSize: '12px', fontWeight: 'bold' }} 
+                                            formatter={(value: number, entry: any) => `${value} (${entry.payload.percentage.toFixed(1)}%)`}
+                                         />
                                     </Bar>
                                 </BarChart>
                             </ChartContainer>
@@ -278,7 +316,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 </div>
                 
                 <div className="text-center text-[10px] text-muted-foreground border-t pt-4">
-                    Este informe fue generado automáticamente por E-lector. Los resultados son definitivos y auditables mediante el archivo Excel.
+                    Este informe fue generado automáticamente por E-lector. Los resultados son definitivos y auditables mediante el archivo PDF.
                 </div>
             </DialogContent>
         </Dialog>

@@ -81,7 +81,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
             const apellidoB = b.apellido.toLowerCase();
             if (apellidoA < apellidoB) return -1;
             if (apellidoA > apellidoB) return 1;
-            return a.nombre.toLowerCase().compare(b.nombre.toLowerCase());
+            return a.nombre.toLowerCase().localeCompare(b.nombre.toLowerCase());
         });
     }, [votersStatus]);
 
@@ -114,7 +114,6 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
 
     const copyVoterLink = (voterId: string) => {
         if (!user) return;
-        // El enlace lleva a /inbox con el voterId como parámetro para pre-llenar
         const link = `${window.location.origin}/inbox?salaId=${user.uid}&voterId=${voterId}`;
         navigator.clipboard.writeText(link);
         toast({ title: 'Enlace copiado', description: 'El enlace con registro pre-llenado está en el portapapeles.' });
@@ -143,7 +142,7 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
 
     return (
       <div className="space-y-6">
-        {poll.status === 'active' && (
+        {(poll.status === 'active' || poll.status === 'closed') && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-1">
                     <CardHeader className="pb-2">
@@ -201,93 +200,96 @@ function VoterList({ poll, votersStatus }: { poll: Poll, votersStatus: VoterStat
             </div>
         )}
 
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="space-y-1">
-                        <CardTitle className="flex items-center gap-2">
-                            <Users className="h-5 w-5" /> 
-                            {poll.status === 'active' ? 'Voluntarios Pendientes por Votar' : 'Registro de Votantes'}
-                        </CardTitle>
-                        <CardDescription>
-                            {poll.status === 'active' 
-                                ? 'Listado de personas habilitadas que aún no han emitido su voto.' 
-                                : 'Gestión de acceso para el grupo asignado.'}
-                        </CardDescription>
+        {/* Solo mostramos la tabla si NO está cerrada */}
+        {poll.status !== 'closed' && (
+            <Card>
+                <CardHeader>
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                        <div className="space-y-1">
+                            <CardTitle className="flex items-center gap-2">
+                                <Users className="h-5 w-5" /> 
+                                {poll.status === 'active' ? 'Voluntarios Pendientes por Votar' : 'Registro de Votantes'}
+                            </CardTitle>
+                            <CardDescription>
+                                {poll.status === 'active' 
+                                    ? 'Listado de personas habilitadas que aún no han emitido su voto.' 
+                                    : 'Gestión de acceso para el grupo asignado.'}
+                            </CardDescription>
+                        </div>
+                        <div className="relative w-full md:w-64">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por nombre..."
+                                className="pl-8"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <div className="relative w-full md:w-64">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Buscar por nombre..."
-                            className="pl-8"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                <div className="border rounded-md overflow-hidden">
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="bg-muted/50">
-                                <TableHead>Nombre Completo (Apellido Apellido Nombres)</TableHead>
-                                {poll.status === 'pending' && <TableHead>Habilitación</TableHead>}
-                                {poll.status !== 'active' && <TableHead>¿Votó?</TableHead>}
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredVoters.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
-                                        {searchTerm ? 'No se encontraron coincidencias.' : (poll.status === 'active' ? '¡Todos los habilitados han votado!' : 'No hay votantes en esta lista.')}
-                                    </TableCell>
+                </CardHeader>
+                <CardContent>
+                    <div className="border rounded-md overflow-hidden">
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="bg-muted/50">
+                                    <TableHead>Nombre Completo (Apellido Apellido Nombres)</TableHead>
+                                    {poll.status === 'pending' && <TableHead>Habilitación</TableHead>}
+                                    {poll.status !== 'active' && <TableHead>¿Votó?</TableHead>}
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
-                            ) : (
-                                filteredVoters.map((voter) => (
-                                    <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
-                                        <TableCell className="font-medium">
-                                            <span className="uppercase font-bold">{voter.apellido}</span> {voter.nombre}
-                                        </TableCell>
-                                        {poll.status === 'pending' && (
-                                            <TableCell>
-                                                <div className="flex items-center space-x-2">
-                                                    <Switch 
-                                                        checked={voter.enabled} 
-                                                        onCheckedChange={() => toggleVoterEnabled(voter.statusDocId, voter.enabled)}
-                                                    />
-                                                    <Label className="text-xs font-normal">{voter.enabled ? 'Habilitado' : 'Bloqueado'}</Label>
-                                                </div>
-                                            </TableCell>
-                                        )}
-                                        {poll.status !== 'active' && (
-                                            <TableCell>
-                                                {voter.hasVoted ? (
-                                                    <Badge variant="secondary" className="bg-green-100 text-green-800">SÍ</Badge>
-                                                ) : (
-                                                    <Badge variant="outline">NO</Badge>
-                                                )}
-                                            </TableCell>
-                                        )}
-                                        <TableCell className="text-right">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                onClick={() => copyVoterLink(voter.id)}
-                                                disabled={poll.status === 'closed'}
-                                            >
-                                                <Copy className="mr-2 h-4 w-4" /> Enlace
-                                            </Button>
+                            </TableHeader>
+                            <TableBody>
+                                {filteredVoters.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
+                                            {searchTerm ? 'No se encontraron coincidencias.' : (poll.status === 'active' ? '¡Todos los habilitados han votado!' : 'No hay votantes en esta lista.')}
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
+                                ) : (
+                                    filteredVoters.map((voter) => (
+                                        <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
+                                            <TableCell className="font-medium">
+                                                <span className="uppercase font-bold">{voter.apellido}</span> {voter.nombre}
+                                            </TableCell>
+                                            {poll.status === 'pending' && (
+                                                <TableCell>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Switch 
+                                                            checked={voter.enabled} 
+                                                            onCheckedChange={() => toggleVoterEnabled(voter.statusDocId, voter.enabled)}
+                                                        />
+                                                        <Label className="text-xs font-normal">{voter.enabled ? 'Habilitado' : 'Bloqueado'}</Label>
+                                                    </div>
+                                                </TableCell>
+                                            )}
+                                            {poll.status !== 'active' && (
+                                                <TableCell>
+                                                    {voter.hasVoted ? (
+                                                        <Badge variant="secondary" className="bg-green-100 text-green-800">SÍ</Badge>
+                                                    ) : (
+                                                        <Badge variant="outline">NO</Badge>
+                                                    )}
+                                                </TableCell>
+                                            )}
+                                            <TableCell className="text-right">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    onClick={() => copyVoterLink(voter.id)}
+                                                    disabled={poll.status === 'closed'}
+                                                >
+                                                    <Copy className="mr-2 h-4 w-4" /> Enlace
+                                                </Button>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
+                </CardContent>
+            </Card>
+        )}
       </div>
     );
 }
