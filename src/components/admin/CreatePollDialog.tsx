@@ -25,7 +25,7 @@ import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebas
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { cn, sortPeople, formatFullName } from '@/lib/utils';
-import { PollTemplate, ListaCompletaItem } from '@/lib/types';
+import { Poll, PollTemplate, ListaCompletaItem } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
@@ -129,8 +129,47 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
     );
 };
 
-export function CreatePollDialog() {
-  const [open, setOpen] = useState(false);
+// "Blanco" y "Nulo" son opciones fijas que siempre van al final.
+const FIXED_OPTION_NAMES = ['blanco', 'nulo'];
+
+// Valores iniciales del formulario. Con `source` (duplicar una votación) se copian la pregunta,
+// las opciones propias y el tipo; "Blanco" y "Nulo" se vuelven a agregar al final.
+function buildInitialValues(source?: Poll | null): z.infer<typeof formSchema> {
+  if (!source) {
+    return {
+      question: '',
+      options: [{ text: '' }, { text: 'Blanco' }, { text: 'Nulo' }],
+      pollType: 'simple',
+    };
+  }
+  const custom = (source.options || [])
+    .map(o => o.text)
+    .filter(text => !FIXED_OPTION_NAMES.includes(normalizeText(text).trim()));
+  return {
+    question: source.question,
+    options: [...(custom.length > 0 ? custom : ['']).map(text => ({ text })), { text: 'Blanco' }, { text: 'Nulo' }],
+    pollType: source.pollType,
+    maxSelections: source.pollType === 'multiple' ? source.maxSelections : undefined,
+  };
+}
+
+type CreatePollDialogProps = {
+  /** Votación a duplicar: precarga pregunta, opciones y tipo (se crea una votación nueva). */
+  sourcePoll?: Poll | null;
+  /** Control externo del diálogo (opcional). Sin esto el diálogo maneja su propio estado. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Oculta el botón "Crear Votación" (cuando el diálogo se abre desde otro botón). */
+  hideTrigger?: boolean;
+};
+
+export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hideTrigger }: CreatePollDialogProps = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = (value: boolean) => {
+    setInternalOpen(value);
+    onOpenChange?.(value);
+  };
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
@@ -152,11 +191,7 @@ export function CreatePollDialog() {
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      question: '',
-      options: [{ text: '' }, { text: 'Blanco' }, { text: 'Nulo' }],
-      pollType: 'simple',
-    },
+    defaultValues: buildInitialValues(sourcePoll),
   });
 
   const { fields, insert, remove, move } = useFieldArray({
@@ -191,11 +226,7 @@ export function CreatePollDialog() {
   };
 
   const resetDialog = () => {
-    form.reset({
-        question: '',
-        options: [{ text: '' }, { text: 'Blanco' }, { text: 'Nulo' }],
-        pollType: 'simple',
-    });
+    form.reset(buildInitialValues(sourcePoll));
     setIsLoading(false);
     setSelectedTemplateId('custom');
     setIsCargoElection(false);
@@ -255,17 +286,21 @@ export function CreatePollDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { setOpen(isOpen); if(!isOpen) resetDialog(); }}>
-      <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Crear Votación
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button className="w-full sm:w-auto">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Crear Votación
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>Crear Nueva Votación</DialogTitle>
+          <DialogTitle>{sourcePoll ? 'Duplicar Votación' : 'Crear Nueva Votación'}</DialogTitle>
           <DialogDescription>
-            Configura los detalles de tu votación. "Blanco" y "Nulo" siempre estarán al final.
+            {sourcePoll
+              ? 'Se copiaron la pregunta, las opciones y el tipo. Revísalos y guarda: se crea una votación nueva y pendiente, sin grupo ni votos.'
+              : 'Configura los detalles de tu votación. "Blanco" y "Nulo" siempre estarán al final.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>

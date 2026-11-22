@@ -52,7 +52,7 @@ const statusText: { [key: string]: string } = {
 };
 
 // Component to display poll card in mobile view
-function PollCard({ poll, onDeleteClick }: { poll: Poll, onDeleteClick: (poll: Poll) => void }) {
+function PollCard({ poll, onDeleteClick, onDuplicateClick }: { poll: Poll, onDeleteClick: (poll: Poll) => void, onDuplicateClick: (poll: Poll) => void }) {
   return (
     <Card>
       <CardHeader className='pb-4'>
@@ -70,6 +70,9 @@ function PollCard({ poll, onDeleteClick }: { poll: Poll, onDeleteClick: (poll: P
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onDuplicateClick(poll)}>
+                    Duplicar
+                  </DropdownMenuItem>
                   <DropdownMenuItem
                     className="text-destructive"
                     onClick={() => onDeleteClick(poll)}
@@ -175,7 +178,7 @@ function RoomAccessCard({ adminId }: { adminId: string }) {
 }
 
 // This component fetches and displays data, but does NOT manage the dialog
-function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Poll) => void }) {
+function DashboardContents({ onPollDeleteClick, onPollDuplicateClick }: { onPollDeleteClick: (poll: Poll) => void, onPollDuplicateClick: (poll: Poll) => void }) {
     const firestore = useFirestore();
     const { user } = useUser();
     
@@ -235,7 +238,7 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                 ) : (
                     <>
                         <div className="md:hidden space-y-4">
-                            {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={onPollDeleteClick} />)}
+                            {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={onPollDeleteClick} onDuplicateClick={onPollDuplicateClick} />)}
                         </div>
                         <div className="hidden md:block">
                             <Table>
@@ -260,6 +263,14 @@ function DashboardContents({ onPollDeleteClick }: { onPollDeleteClick: (poll: Po
                                                   <Eye className="mr-2 h-4 w-4" />
                                                   Detalles
                                               </Link>
+                                          </Button>
+                                          <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => onPollDuplicateClick(poll)}
+                                          >
+                                              <Copy className="mr-2 h-4 w-4" />
+                                              Duplicar
                                           </Button>
                                           <Button
                                               variant="ghost"
@@ -290,6 +301,7 @@ export default function DashboardPage() {
   const { user } = useUser();
   const { toast } = useToast();
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
+  const [pollToDuplicate, setPollToDuplicate] = useState<Poll | null>(null);
 
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
@@ -324,7 +336,18 @@ export default function DashboardPage() {
         <CardDescription>Crea y administra tus votaciones anónimas desde aquí.</CardDescription>
       </CardHeader>
       
-      <DashboardContents onPollDeleteClick={setPollToDelete} />
+      <DashboardContents onPollDeleteClick={setPollToDelete} onPollDuplicateClick={setPollToDuplicate} />
+
+      {/* Se monta solo al duplicar, ya con los datos de la votación elegida */}
+      {pollToDuplicate && (
+        <CreatePollDialog
+          key={pollToDuplicate.id}
+          sourcePoll={pollToDuplicate}
+          open
+          onOpenChange={(isOpen) => { if (!isOpen) setPollToDuplicate(null); }}
+          hideTrigger
+        />
+      )}
 
       <AlertDialog open={!!pollToDelete} onOpenChange={(open) => !open && setPollToDelete(null)}>
         <AlertDialogContent>
