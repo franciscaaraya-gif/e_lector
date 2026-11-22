@@ -43,9 +43,16 @@ function RfidIndividual({ personal }: { personal: ListaCompletaItem[] }) {
   const scanRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
-    const terms = normalizeText(search).split(/\s+/).filter(Boolean);
+    const raw = search.trim();
+    const terms = normalizeText(raw).split(/\s+/).filter(Boolean);
     if (terms.length === 0 || selected) return [];
+    const code = normalizeRfid(raw);
+    const isNumeric = /^\d+$/.test(raw);
     const filtered = personal.filter(p => {
+      // Tarjeta pasada por el lector
+      if (code && code.length >= 4 && normalizeRfid(p.rfid) === code) return true;
+      // N° de registro exacto
+      if (isNumeric) return (p.regGeneral || '').replace(/^0+/, '') === raw.replace(/^0+/, '');
       const full = normalizeText(`${p.apellidos} ${p.nombres}`);
       return terms.every(t => full.includes(t));
     });
@@ -108,7 +115,7 @@ function RfidIndividual({ personal }: { personal: ListaCompletaItem[] }) {
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Buscar voluntario por apellido o nombre..." value={search} onChange={(e) => setSearch(e.target.value)} inputMode={kbOpen ? 'none' : undefined} autoComplete="off" />
+            <Input className="pl-9" placeholder="Nombre, apellido, N° de registro o pasa la tarjeta..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && results.length === 1) { e.preventDefault(); choose(results[0]); } }} inputMode={kbOpen ? 'none' : undefined} autoComplete="off" />
           </div>
           <Button type="button" variant={kbOpen ? 'default' : 'outline'} size="sm" className="w-full" onClick={() => setKbOpen(o => !o)}>
             <Keyboard className="h-4 w-4 mr-2" /> {kbOpen ? 'Ocultar teclado en pantalla' : 'Mostrar teclado en pantalla'}
