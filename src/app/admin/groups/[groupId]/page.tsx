@@ -2,7 +2,7 @@
 
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { collection, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { 
   Fingerprint, 
@@ -18,7 +18,9 @@ import {
   Edit2,
   ShieldCheck,
   Eye,
-  EyeOff
+  EyeOff,
+  CreditCard,
+  Keyboard
 } from 'lucide-react';
 
 import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from '@/firebase';
@@ -47,6 +49,16 @@ import {
 } from "@/components/ui/dialog";
 import { sortPeople, formatFullName } from '@/lib/utils';
 
+// Los lectores RFID se comportan como teclado: escriben el código y luego Enter.
+// Se normaliza para tolerar guiones, espacios, mayúsculas y ceros a la izquierda.
+const normalizeRfid = (value: unknown): string => {
+  const cleaned = String(value ?? '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const noZeros = cleaned.replace(/^0+/, '');
+  return noZeros;
+};
+
+type ScanFeedback = { kind: 'ok' | 'dup' | 'unknown'; text: string };
+
 export default function GroupDetailsPage() {
   const { groupId } = useParams() as { groupId: string };
   const { user, isUserLoading } = useUser();
@@ -59,6 +71,15 @@ export default function GroupDetailsPage() {
   const [manualLastNames, setManualLastNames] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
   const [showIds, setShowIds] = useState(false);
+
+  // Modo de ingreso: 'teclado' (búsqueda por letras) o 'rfid' (lector de tarjetas)
+  const [inputMode, setInputMode] = useState<'teclado' | 'rfid'>('teclado');
+  const [scanValue, setScanValue] = useState('');
+  const [scanFeedback, setScanFeedback] = useState<ScanFeedback | null>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const votersRef = useRef<VoterInfo[]>([]);
+  const writeChain = useRef<Promise<void>>(Promise.resolve());
 
   const [isEditNameOpen, setIsEditNameOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -74,8 +95,18 @@ export default function GroupDetailsPage() {
   useEffect(() => {
     if (group) {
         setNewName(group.name);
+        votersRef.current = group.voters || [];
     }
   }, [group]);
+
+  // Al cambiar de modo, enfocar el campo correspondiente
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (inputMode === 'rfid') scanInputRef.current?.focus();
+      else searchInputRef.current?.focus();
+    }, 50);
+    return () => clearTimeout(t);
+  }, [inputMode]);
 
   // Load personnel list for lookup
   const personalQuery = useMemoFirebase(() => {
@@ -84,6 +115,15 @@ export default function GroupDetailsPage() {
   }, [firestore, user]);
 
   const { data: personnel } = useCollection<ListaCompletaItem>(personalQuery);
+
+  const rfidMap = useMemo(() => {
+    const map = new Map<string, ListaCompletaItem>();
+    (personnel || []).forEach(p => {
+      const key = normalizeRfid(p.rfid);
+      if (key) map.set(key, p);
+    });
+    return map;
+  }, [personnel]);
 
   // Search logic for UI preview
   const searchResults = useMemo(() => {
@@ -126,6 +166,64 @@ export default function GroupDetailsPage() {
       }));
     } finally {
       setIsUpdating(false);
+    }
+  };
+
+  // Agrega una persona de forma segura aunque se pasen tarjetas muy seguidas.
+  // Devuelve true si se agregó, false si ya estaba.
+  const addVoterQueued = (voter: VoterInfo): Promise<boolean> => {
+    if (!groupRef) return Promise.resolve(false);
+    if (votersRef.current.some(v => v.id === voter.id)) return Promise.resolve(false);
+    const updatedVoters = [...votersRef.current, voter];
+    votersRef.current = updatedVoters;
+    const run = writeChain.current.then(async () => {
+      try {
+        await updateDoc(groupRef, { voters: updatedVoters });
+      } catch (error) {
+        votersRef.current = votersRef.current.filter(v => v.id !== voter.id);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: groupRef.path,
+          operation: 'update',
+          requestResourceData: { voters: updatedVoters }
+        }));
+        throw error;
+      }
+    });
+    writeChain.current = run.catch(() => {});
+    return run.then(() => true);
+  };
+
+  const handleScan = async (raw: string) => {
+    const code = normalizeRfid(raw);
+    setScanValue('');
+    if (!code || !group) return;
+
+    const person = rfidMap.get(code);
+    if (!person) {
+      setScanFeedback({ kind: 'unknown', text: 'Tarjeta no registrada. Búscala por nombre o regístrala en Configuración.' });
+      return;
+    }
+
+    const name = formatFullName(person.nombres, person.apellidos);
+    try {
+      const added = await addVoterQueued({
+        id: person.regGeneral || person.id,
+        nombre: person.nombres,
+        apellido: person.apellidos,
+        enabled: true
+      });
+      setScanFeedback(added
+        ? { kind: 'ok', text: `${name} agregado/a al grupo.` }
+        : { kind: 'dup', text: `${name} ya estaba en el grupo.` });
+    } catch {
+      setScanFeedback({ kind: 'unknown', text: `No se pudo agregar a ${name}.` });
+    }
+  };
+
+  const handleScanKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleScan(scanValue);
     }
   };
 
@@ -272,21 +370,77 @@ export default function GroupDetailsPage() {
                 <Search className="h-5 w-5 text-primary" />
                 Enrolamiento
               </CardTitle>
-              <CardDescription>Busca por apellido o nombre para agregar.</CardDescription>
+              <CardDescription>Busca por apellido o nombre, o pasa la tarjeta RFID.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="relative">
+              <div className="grid grid-cols-2 gap-1 p-1 bg-muted rounded-lg">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={inputMode === 'teclado' ? 'default' : 'ghost'}
+                  onClick={() => setInputMode('teclado')}
+                >
+                  <Keyboard className="h-4 w-4 mr-2" /> Teclado
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={inputMode === 'rfid' ? 'default' : 'ghost'}
+                  onClick={() => setInputMode('rfid')}
+                >
+                  <CreditCard className="h-4 w-4 mr-2" /> Tarjeta RFID
+                </Button>
+              </div>
+
+              {inputMode === 'rfid' && (
+                <div className="space-y-3">
+                  <Input
+                    ref={scanInputRef}
+                    value={scanValue}
+                    onChange={(e) => setScanValue(e.target.value)}
+                    onKeyDown={handleScanKeyDown}
+                    onBlur={(e) => {
+                      // Mantener el foco para el lector, salvo que el usuario haya pasado a otro campo/botón
+                      if (!e.relatedTarget) setTimeout(() => scanInputRef.current?.focus(), 0);
+                    }}
+                    inputMode="none"
+                    autoComplete="off"
+                    autoFocus
+                    placeholder="Pasa la tarjeta por el lector..."
+                    className="bg-primary/5 text-center"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    Modo tarjeta activo: cada tarjeta que pases se agrega al grupo. Para escribir con letras, cambia a «Teclado».
+                  </p>
+                  {scanFeedback && (
+                    <div
+                      className={
+                        'text-sm rounded-md border p-3 text-center font-medium ' +
+                        (scanFeedback.kind === 'ok'
+                          ? 'bg-green-50 border-green-200 text-green-700'
+                          : scanFeedback.kind === 'dup'
+                          ? 'bg-amber-50 border-amber-200 text-amber-700'
+                          : 'bg-destructive/10 border-destructive/30 text-destructive')
+                      }
+                    >
+                      {scanFeedback.text}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className={inputMode === 'rfid' ? 'hidden' : 'relative'}>
                 <Input 
                   placeholder="Buscar voluntario..." 
                   className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  autoFocus
+                  ref={searchInputRef}
                 />
               </div>
               
-              {searchResults.length > 0 && (
+              {inputMode === 'teclado' && searchResults.length > 0 && (
                 <div className="border rounded-md divide-y overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
                    <ScrollArea className={searchResults.length > 3 ? "h-64" : "h-auto"}>
                     {searchResults.map((voter) => (
@@ -314,7 +468,7 @@ export default function GroupDetailsPage() {
                 </div>
               )}
 
-              {searchId.trim().length >= 2 && searchResults.length === 0 && (
+              {inputMode === 'teclado' && searchId.trim().length >= 2 && searchResults.length === 0 && (
                   <p className="text-xs text-center text-muted-foreground italic">No se encontraron coincidencias.</p>
               )}
             </CardContent>
