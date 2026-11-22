@@ -3,7 +3,7 @@
 import { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { collection, writeBatch, query, where, doc, getDocs, updateDoc, deleteField } from 'firebase/firestore';
-import { FileUp, Loader2, Users, CreditCard, Check, Eye, EyeOff, Search, X } from 'lucide-react';
+import { FileUp, Loader2, Users, CreditCard, Check, Eye, EyeOff, Search, X, Keyboard } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -17,6 +17,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { sortPeople, formatFullName } from '@/lib/utils';
+import { OnScreenKeyboard } from '@/components/ui/on-screen-keyboard';
 
 
 type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
@@ -38,6 +39,7 @@ function RfidIndividual({ personal }: { personal: ListaCompletaItem[] }) {
   const [selected, setSelected] = useState<ListaCompletaItem | null>(null);
   const [scan, setScan] = useState('');
   const [saving, setSaving] = useState(false);
+  const [kbOpen, setKbOpen] = useState(false);
   const scanRef = useRef<HTMLInputElement>(null);
 
   const results = useMemo(() => {
@@ -106,8 +108,17 @@ function RfidIndividual({ personal }: { personal: ListaCompletaItem[] }) {
         <div className="space-y-2">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Buscar voluntario por apellido o nombre..." value={search} onChange={(e) => setSearch(e.target.value)} autoComplete="off" />
+            <Input className="pl-9" placeholder="Buscar voluntario por apellido o nombre..." value={search} onChange={(e) => setSearch(e.target.value)} inputMode={kbOpen ? 'none' : undefined} autoComplete="off" />
           </div>
+          <Button type="button" variant={kbOpen ? 'default' : 'outline'} size="sm" className="w-full" onClick={() => setKbOpen(o => !o)}>
+            <Keyboard className="h-4 w-4 mr-2" /> {kbOpen ? 'Ocultar teclado en pantalla' : 'Mostrar teclado en pantalla'}
+          </Button>
+          {kbOpen && (
+            <>
+              <div className="h-80" aria-hidden />
+              <OnScreenKeyboard onChange={setSearch} onClose={() => setKbOpen(false)} />
+            </>
+          )}
           {results.length > 0 && (
             <div className="border rounded-md divide-y">
               {results.map(p => (

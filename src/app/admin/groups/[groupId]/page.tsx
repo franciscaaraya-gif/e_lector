@@ -48,6 +48,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { sortPeople, formatFullName } from '@/lib/utils';
+import { OnScreenKeyboard } from '@/components/ui/on-screen-keyboard';
 
 // Los lectores RFID se comportan como teclado: escriben el código y luego Enter.
 // Se normaliza para tolerar guiones, espacios, mayúsculas y ceros a la izquierda.
@@ -76,6 +77,8 @@ export default function GroupDetailsPage() {
   const [inputMode, setInputMode] = useState<'teclado' | 'rfid'>('teclado');
   const [scanValue, setScanValue] = useState('');
   const [scanFeedback, setScanFeedback] = useState<ScanFeedback | null>(null);
+  const [kbOpen, setKbOpen] = useState(false);
+  const [kbTarget, setKbTarget] = useState<'search' | 'names' | 'lastnames'>('search');
   const scanInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const votersRef = useRef<VoterInfo[]>([]);
@@ -128,11 +131,13 @@ export default function GroupDetailsPage() {
   // Search logic for UI preview
   const searchResults = useMemo(() => {
     if (!searchId.trim() || !personnel || searchId.trim().length < 2) return [];
-    const search = searchId.trim().toLowerCase();
-    
-    const filtered = personnel.filter(p => 
-      `${p.apellidos} ${p.nombres}`.toLowerCase().includes(search)
-    );
+    const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const terms = norm(searchId).split(/\s+/).filter(Boolean);
+
+    const filtered = personnel.filter(p => {
+      const full = norm(`${p.apellidos} ${p.nombres}`);
+      return terms.every(t => full.includes(t));
+    });
 
     return sortPeople(filtered, (p) => ({ nombres: p.nombres, apellidos: p.apellidos })).slice(0, 10);
   }, [searchId, personnel]);
@@ -191,6 +196,18 @@ export default function GroupDetailsPage() {
     });
     writeChain.current = run.catch(() => {});
     return run.then(() => true);
+  };
+
+  const kbChange = (updater: (prev: string) => string) => {
+    if (kbTarget === 'names') setManualNames(updater);
+    else if (kbTarget === 'lastnames') setManualLastNames(updater);
+    else setSearchId(updater);
+  };
+
+  const openKeyboard = () => {
+    setInputMode('teclado');
+    setKbTarget('search');
+    setKbOpen(true);
   };
 
   const handleScan = async (raw: string) => {
@@ -392,6 +409,17 @@ export default function GroupDetailsPage() {
                 </Button>
               </div>
 
+              <Button
+                type="button"
+                variant={kbOpen ? 'default' : 'outline'}
+                size="sm"
+                className="w-full"
+                onClick={() => (kbOpen ? setKbOpen(false) : openKeyboard())}
+              >
+                <Keyboard className="h-4 w-4 mr-2" />
+                {kbOpen ? 'Ocultar teclado en pantalla' : 'Mostrar teclado en pantalla'}
+              </Button>
+
               {inputMode === 'rfid' && (
                 <div className="space-y-3">
                   <Input
@@ -436,6 +464,8 @@ export default function GroupDetailsPage() {
                   value={searchId}
                   onChange={(e) => setSearchId(e.target.value)}
                   onKeyDown={handleKeyDown}
+                  onFocus={() => setKbTarget('search')}
+                  inputMode={kbOpen ? 'none' : undefined}
                   ref={searchInputRef}
                 />
               </div>
@@ -487,11 +517,11 @@ export default function GroupDetailsPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label>Nombres</Label>
-                    <Input value={manualNames} onChange={(e) => setManualNames(e.target.value)} placeholder="Ej: Juan" />
+                    <Input value={manualNames} onChange={(e) => setManualNames(e.target.value)} onFocus={() => setKbTarget('names')} inputMode={kbOpen ? 'none' : undefined} placeholder="Ej: Juan" />
                   </div>
                   <div className="space-y-2">
                     <Label>Apellidos</Label>
-                    <Input value={manualLastNames} onChange={(e) => setManualLastNames(e.target.value)} placeholder="Ej: Pérez" />
+                    <Input value={manualLastNames} onChange={(e) => setManualLastNames(e.target.value)} onFocus={() => setKbTarget('lastnames')} inputMode={kbOpen ? 'none' : undefined} placeholder="Ej: Pérez" />
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" className="flex-1" onClick={() => setShowManualForm(false)}>Cancelar</Button>
@@ -567,6 +597,17 @@ export default function GroupDetailsPage() {
           </Card>
         </div>
       </div>
+
+      {kbOpen && (
+        <>
+          <div className="h-80" aria-hidden />
+          <OnScreenKeyboard
+            onChange={kbChange}
+            onEnter={kbTarget === 'search' ? () => handleKeyDown({ key: 'Enter' } as React.KeyboardEvent<HTMLInputElement>) : undefined}
+            onClose={() => setKbOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 }
