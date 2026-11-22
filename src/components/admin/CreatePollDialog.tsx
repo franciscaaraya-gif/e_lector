@@ -28,8 +28,7 @@ import { cn, sortPeople, formatFullName } from '@/lib/utils';
 import { PollTemplate, ListaCompletaItem } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { ScrollArea } from '../ui/scroll-area';
+import { Popover, PopoverAnchor, PopoverContent } from '../ui/popover';
 import { Alert, AlertDescription } from '../ui/alert';
 
 const formSchema = z.object({
@@ -53,18 +52,26 @@ const formSchema = z.object({
     path: ['maxSelections'],
 });
 
+// Minúsculas y sin tildes, para que "munoz" encuentre a "Muñoz" y "nunez" a "Núñez".
+const normalizeText = (s: string) =>
+    (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
 const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: number, volunteers: ListaCompletaItem[] }) => {
     const [suggestions, setSuggestions] = useState<ListaCompletaItem[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = e.target.value;
-        field.onChange(value); 
+        field.onChange(value);
 
         if (value.length >= 2) {
-            const filtered = volunteers.filter(v =>
-                `${v.apellidos} ${v.nombres}`.toLowerCase().includes(value.toLowerCase())
-            );
+            // Todas las palabras escritas deben aparecer, en cualquier orden
+            // ("juan perez" encuentra a "Pérez Soto Juan").
+            const terms = normalizeText(value).split(/\s+/).filter(Boolean);
+            const filtered = volunteers.filter(v => {
+                const haystack = normalizeText(`${v.apellidos} ${v.nombres}`);
+                return terms.every(t => haystack.includes(t));
+            });
             const sorted = sortPeople(filtered, (v) => ({ nombres: v.nombres, apellidos: v.apellidos }));
             setSuggestions(sorted);
             setPopoverOpen(sorted.length > 0);
@@ -82,20 +89,27 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
 
     return (
         <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-            <PopoverTrigger asChild>
+            {/* IMPORTANTE: PopoverAnchor, no PopoverTrigger. El Trigger le agrega type="button"
+                al <input> y deja de poder escribirse en él. */}
+            <PopoverAnchor asChild>
                 <Input
+                    type="text"
                     placeholder={`Opción ${index + 1}`}
                     value={field.value || ''}
                     onChange={handleInputChange}
+                    onBlur={field.onBlur}
+                    name={field.name}
+                    ref={field.ref}
                     autoComplete="off"
                     className="flex-1"
                 />
-            </PopoverTrigger>
-            <PopoverContent 
+            </PopoverAnchor>
+            <PopoverContent
                 className="w-[--radix-popover-trigger-width] p-0"
                 onOpenAutoFocus={(e) => e.preventDefault()}
             >
-                <ScrollArea className="max-h-48">
+                {/* div con scroll propio: ScrollArea con max-h no permite desplazarse */}
+                <div className="max-h-48 overflow-y-auto overscroll-contain">
                     {suggestions.map(v => (
                         <div
                             key={v.id}
@@ -109,7 +123,7 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
                             <span className="text-[10px] text-muted-foreground uppercase">{v.tipo}</span>
                         </div>
                     ))}
-                </ScrollArea>
+                </div>
             </PopoverContent>
         </Popover>
     );
