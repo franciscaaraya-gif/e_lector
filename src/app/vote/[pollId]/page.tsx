@@ -21,7 +21,7 @@ import { Poll, PollLookup, VoterStatus } from '@/lib/types';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Form, FormControl, FormField, FormItem, FormMessage, FormLabel } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
@@ -108,7 +108,7 @@ function VotePageClient() {
 
     const formSchema = z.object({
         selectedOptions: poll?.pollType === 'simple'
-            ? z.string({ required_error: "Debes seleccionar una opción." })
+            ? z.string({ required_error: "Debes seleccionar una opción.", invalid_type_error: "Debes seleccionar una opción." })
             : z.array(z.string()).min(1, "Debes seleccionar al menos una opción.").max(poll?.maxSelections || poll?.options.length || 0, `Puedes seleccionar como máximo ${poll?.maxSelections} opciones.`)
     });
 
@@ -120,6 +120,15 @@ function VotePageClient() {
     });
 
     const { formState: { isSubmitting } } = form;
+
+    // useForm toma defaultValues solo en el primer render, cuando `poll` aún es null,
+    // y en votaciones simples el valor inicial quedaba como [] en vez de vacío.
+    // Al cargar la votación se reinicia con el valor inicial correcto.
+    useEffect(() => {
+        if (!poll) return;
+        form.reset({ selectedOptions: poll.pollType === 'simple' ? undefined : [] });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [poll?.id, poll?.pollType]);
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
         if (!firestore || !poll || !adminId || !voterDocId) {
@@ -267,26 +276,28 @@ function VotePageClient() {
                                             >
                                                 {poll.options.map((option) => {
                                                     const isSelected = field.value === String(option.id);
+                                                    // IMPORTANTE: el cambio de opción lo hace SOLO el control de Radix
+                                                    // (vía onValueChange). No agregar onClick a la tarjeta: Radix emite
+                                                    // un clic extra desde un <input> oculto y provoca un bucle que
+                                                    // impide cambiar de opción. El <label> ocupa toda la tarjeta.
                                                     return (
-                                                        <FormItem 
-                                                            key={option.id} 
-                                                            className={cn(
-                                                                "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
-                                                                isSelected 
-                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md" 
-                                                                    : "bg-background border-input hover:border-primary/30"
-                                                            )}
-                                                            onClick={() => field.onChange(String(option.id))}
-                                                        >
-                                                            <FormControl>
-                                                                <RadioGroupItem 
-                                                                    value={String(option.id)} 
-                                                                    className="sr-only" 
-                                                                />
-                                                            </FormControl>
-                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
-                                                                {option.text}
-                                                            </FormLabel>
+                                                        <FormItem key={option.id} className="space-y-0">
+                                                            <Label
+                                                                className={cn(
+                                                                    "flex items-center space-x-3 rounded-lg border-2 p-4 transition-all cursor-pointer font-bold text-lg leading-normal",
+                                                                    isSelected
+                                                                        ? "bg-primary text-primary-foreground border-primary shadow-md"
+                                                                        : "bg-background border-input hover:border-primary/30"
+                                                                )}
+                                                            >
+                                                                <FormControl>
+                                                                    <RadioGroupItem
+                                                                        value={String(option.id)}
+                                                                        className="sr-only"
+                                                                    />
+                                                                </FormControl>
+                                                                <span className="flex-1 py-2">{option.text}</span>
+                                                            </Label>
                                                         </FormItem>
                                                     );
                                                 })}
@@ -303,32 +314,36 @@ function VotePageClient() {
                                                             : [...currentValues, String(option.id)];
                                                         
                                                         if (!isSelected && poll.maxSelections && next.length > poll.maxSelections) {
+                                                            toast({
+                                                                title: 'Máximo de opciones alcanzado',
+                                                                description: `Puedes elegir hasta ${poll.maxSelections}. Quita una para elegir otra.`,
+                                                            });
                                                             return;
                                                         }
                                                         field.onChange(next);
                                                     };
 
+                                                    // Igual que en la selección única: el cambio lo hace SOLO el control
+                                                    // (onCheckedChange). No agregar onClick a la tarjeta (ver nota arriba).
                                                     return (
-                                                        <FormItem 
-                                                            key={option.id} 
-                                                            className={cn(
-                                                                "flex items-center space-x-3 space-y-0 rounded-lg border-2 p-4 transition-all cursor-pointer",
-                                                                isSelected 
-                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md" 
-                                                                    : "bg-background border-input hover:border-primary/30"
-                                                            )}
-                                                            onClick={handleToggle}
-                                                        >
-                                                            <FormControl>
-                                                                <Checkbox 
-                                                                    className="sr-only"
-                                                                    checked={isSelected}
-                                                                    onCheckedChange={() => {}} 
-                                                                />
-                                                            </FormControl>
-                                                            <FormLabel className="font-bold text-lg flex-1 cursor-pointer py-2">
-                                                                {option.text}
-                                                            </FormLabel>
+                                                        <FormItem key={option.id} className="space-y-0">
+                                                            <Label
+                                                                className={cn(
+                                                                    "flex items-center space-x-3 rounded-lg border-2 p-4 transition-all cursor-pointer font-bold text-lg leading-normal",
+                                                                    isSelected
+                                                                        ? "bg-primary text-primary-foreground border-primary shadow-md"
+                                                                        : "bg-background border-input hover:border-primary/30"
+                                                                )}
+                                                            >
+                                                                <FormControl>
+                                                                    <Checkbox
+                                                                        className="sr-only"
+                                                                        checked={isSelected}
+                                                                        onCheckedChange={handleToggle}
+                                                                    />
+                                                                </FormControl>
+                                                                <span className="flex-1 py-2">{option.text}</span>
+                                                            </Label>
                                                         </FormItem>
                                                     );
                                                 })}
