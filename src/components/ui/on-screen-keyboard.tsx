@@ -47,7 +47,7 @@ export function OnScreenKeyboard({ onChange, onEnter, onClose, className }: OnSc
   const backspace = () => onChange((prev) => Array.from(prev).slice(0, -1).join(''));
 
   const keyClass =
-    'h-12 min-w-0 flex-1 rounded-md border bg-background text-lg font-medium shadow-sm active:bg-primary active:text-primary-foreground select-none touch-manipulation';
+    'h-11 sm:h-12 min-w-0 flex-1 rounded-md border bg-background text-base sm:text-lg font-medium shadow-sm active:bg-primary active:text-primary-foreground select-none touch-manipulation';
 
   const renderKey = (k: string) => (
     <button
@@ -65,7 +65,7 @@ export function OnScreenKeyboard({ onChange, onEnter, onClose, className }: OnSc
   return (
     <div
       className={cn(
-        'fixed inset-x-0 bottom-0 z-[100] border-t bg-muted p-2 shadow-2xl',
+        'fixed inset-x-0 bottom-0 z-[100] border-t bg-muted p-1.5 sm:p-2 pb-[max(0.375rem,env(safe-area-inset-bottom))] shadow-2xl',
         className
       )}
       onMouseDown={keep}

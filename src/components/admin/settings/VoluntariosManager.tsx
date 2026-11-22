@@ -308,9 +308,9 @@ export function VoluntariosManager() {
     <div className="space-y-6">
       <Tabs defaultValue="personal">
         <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="personal">Cargar Personal</TabsTrigger>
-            <TabsTrigger value="rfid">Tarjetas (Excel)</TabsTrigger>
-            <TabsTrigger value="rfid-uno">Tarjeta individual</TabsTrigger>
+            <TabsTrigger value="personal" className="px-1 text-xs sm:text-sm">Personal</TabsTrigger>
+            <TabsTrigger value="rfid" className="px-1 text-xs sm:text-sm">Tarjetas Excel</TabsTrigger>
+            <TabsTrigger value="rfid-uno" className="px-1 text-xs sm:text-sm">Individual</TabsTrigger>
         </TabsList>
 
         <TabsContent value="personal" className="space-y-4 pt-4">

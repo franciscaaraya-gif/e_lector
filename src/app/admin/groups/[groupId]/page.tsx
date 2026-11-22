@@ -97,11 +97,29 @@ export default function GroupDetailsPage() {
     }
   }, [group]);
 
-  // Enfocar el buscador al abrir la página (listo para escribir o pasar la tarjeta)
+  // El buscador se enfoca solo al cargar el grupo, y si en cualquier momento llega
+  // una tecla (lector de tarjetas o teclado) sin que haya un campo activo, se envía al buscador.
+  const groupLoaded = !!group;
   useEffect(() => {
+    if (!groupLoaded) return;
     const t = setTimeout(() => searchInputRef.current?.focus(), 100);
-    return () => clearTimeout(t);
-  }, []);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length !== 1 && e.key !== 'Enter') return; // solo caracteres imprimibles / Enter
+      const el = document.activeElement as HTMLElement | null;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+      if (typing) return;
+      if (document.querySelector('[role="dialog"]')) return; // no robar teclas a diálogos abiertos
+      if (el && (el.tagName === 'BUTTON' || el.tagName === 'A') && e.key === 'Enter') return;
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [groupLoaded]);
 
   // Load personnel list for lookup
   const personalQuery = useMemoFirebase(() => {
@@ -322,18 +340,18 @@ export default function GroupDetailsPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className='flex items-center justify-between'>
-        <div className="flex items-center gap-4">
+    <div className="max-w-5xl mx-auto space-y-6 w-full min-w-0">
+      <div className='flex flex-wrap items-center justify-between gap-3'>
+        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/admin/groups"><ArrowLeft className="h-5 w-5" /></Link>
           </Button>
-          <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setIsEditNameOpen(true)}>
-             <h1 className="text-2xl font-bold font-headline">{group.name}</h1>
+          <div className="flex items-center gap-2 group cursor-pointer min-w-0" onClick={() => setIsEditNameOpen(true)}>
+             <h1 className="text-xl sm:text-2xl font-bold font-headline truncate">{group.name}</h1>
              <Edit2 className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             <div className="flex items-center space-x-2 bg-muted/50 px-3 py-1.5 rounded-full border">
                 <Switch 
                     id="show-ids" 
@@ -343,7 +361,8 @@ export default function GroupDetailsPage() {
                 />
                 <Label htmlFor="show-ids" className="text-[10px] uppercase font-bold cursor-pointer flex items-center gap-1.5">
                     {showIds ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
-                    Mostrar N° de registro
+                    <span className="sm:hidden">N° registro</span>
+                    <span className="hidden sm:inline">Mostrar N° de registro</span>
                 </Label>
             </div>
             {isUpdating && (
@@ -398,7 +417,7 @@ export default function GroupDetailsPage() {
 
               <div className="relative">
                 <Input 
-                  placeholder="Nombre, apellido, N° de registro o pasa la tarjeta..." 
+                  placeholder="Nombre, N° registro o pasa la tarjeta" 
                   autoComplete="off" 
                   className="bg-primary/5 focus:bg-background transition-colors"
                   value={searchId}
@@ -407,6 +426,7 @@ export default function GroupDetailsPage() {
                   onFocus={() => setKbTarget('search')}
                   inputMode={kbOpen ? 'none' : undefined}
                   ref={searchInputRef}
+                  autoFocus
                 />
               </div>
               
