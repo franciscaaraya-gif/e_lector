@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { collection, writeBatch, query, where, doc, getDocs } from 'firebase/firestore';
-import { FileUp, Loader2, Users, CreditCard, Check, Eye, EyeOff } from 'lucide-react';
+import { collection, writeBatch, query, where, doc, getDocs, updateDoc, deleteField } from 'firebase/firestore';
+import { FileUp, Loader2, Users, CreditCard, Check, Eye, EyeOff, Search, X } from 'lucide-react';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { sortPeople, formatFullName } from '@/lib/utils';
 
 
@@ -22,6 +23,136 @@ type ParsedVoluntario = Omit<ListaCompletaItem, 'id' | 'adminId'>;
 
 const normalizeHeader = (header: string) => {
     return header.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+const normalizeRfid = (value: unknown): string =>
+    String(value ?? '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().replace(/^0+/, '');
+const normalizeText = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Asignar, cambiar o quitar la tarjeta de UNA persona escaneándola
+function RfidIndividual({ personal }: { personal: ListaCompletaItem[] }) {
+  const { toast } = useToast();
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<ListaCompletaItem | null>(null);
+  const [scan, setScan] = useState('');
+  const [saving, setSaving] = useState(false);
+  const scanRef = useRef<HTMLInputElement>(null);
+
+  const results = useMemo(() => {
+    const terms = normalizeText(search).split(/\s+/).filter(Boolean);
+    if (terms.length === 0 || selected) return [];
+    const filtered = personal.filter(p => {
+      const full = normalizeText(`${p.apellidos} ${p.nombres}`);
+      return terms.every(t => full.includes(t));
+    });
+    return sortPeople(filtered, (p) => ({ nombres: p.nombres, apellidos: p.apellidos })).slice(0, 8);
+  }, [search, personal, selected]);
+
+  const choose = (p: ListaCompletaItem) => {
+    setSelected(p);
+    setSearch('');
+    setScan('');
+    setTimeout(() => scanRef.current?.focus(), 50);
+  };
+
+  const save = async () => {
+    if (!firestore || !user || !selected) return;
+    const code = scan.trim();
+    const key = normalizeRfid(code);
+    if (!key) return;
+    const owner = personal.find(p => p.id !== selected.id && normalizeRfid(p.rfid) === key);
+    if (owner) {
+      toast({
+        variant: 'destructive',
+        title: 'Tarjeta ya asignada',
+        description: `Esta tarjeta ya pertenece a ${formatFullName(owner.nombres, owner.apellidos)}. Quítasela primero.`,
+      });
+      setScan('');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateDoc(doc(firestore, 'admins', user.uid, 'lista_completa', selected.id), { rfid: code });
+      toast({ title: 'Tarjeta guardada', description: `${formatFullName(selected.nombres, selected.apellidos)} quedó vinculado/a.` });
+      setSelected(null);
+      setScan('');
+    } catch {
+      toast({ variant: 'destructive', title: 'No se pudo guardar la tarjeta' });
+    } finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    if (!firestore || !user || !selected) return;
+    setSaving(true);
+    try {
+      await updateDoc(doc(firestore, 'admins', user.uid, 'lista_completa', selected.id), { rfid: deleteField() });
+      toast({ title: 'Tarjeta quitada' });
+      setSelected(null);
+    } catch {
+      toast({ variant: 'destructive', title: 'No se pudo quitar la tarjeta' });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Alert className="bg-blue-50 border-blue-200">
+        <AlertTitle className="text-sm flex items-center gap-2"><CreditCard className="h-4 w-4" /> Una tarjeta a la vez</AlertTitle>
+        <AlertDescription className="text-xs">Busca al voluntario por nombre, pasa su tarjeta por el lector y guarda. Sirve para asignar, cambiar o quitar una tarjeta.</AlertDescription>
+      </Alert>
+
+      {!selected ? (
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input className="pl-9" placeholder="Buscar voluntario por apellido o nombre..." value={search} onChange={(e) => setSearch(e.target.value)} autoComplete="off" />
+          </div>
+          {results.length > 0 && (
+            <div className="border rounded-md divide-y">
+              {results.map(p => (
+                <button key={p.id} type="button" className="w-full p-3 text-left hover:bg-muted flex items-center justify-between" onClick={() => choose(p)}>
+                  <span className="text-sm font-medium">{formatFullName(p.nombres, p.apellidos)}</span>
+                  {p.rfid ? <Badge variant="secondary" className="bg-green-100 text-green-800">Con tarjeta</Badge> : <span className="text-xs text-muted-foreground">Sin tarjeta</span>}
+                </button>
+              ))}
+            </div>
+          )}
+          {search.trim() && results.length === 0 && <p className="text-xs text-center text-muted-foreground italic">Sin coincidencias.</p>}
+        </div>
+      ) : (
+        <div className="space-y-3 border rounded-md p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="font-bold">{formatFullName(selected.nombres, selected.apellidos)}</p>
+              <p className="text-xs text-muted-foreground">
+                {selected.rfid ? `Tarjeta actual: ${selected.rfid}` : 'Aún sin tarjeta'}
+              </p>
+            </div>
+            <Button variant="ghost" size="icon" onClick={() => { setSelected(null); setScan(''); }}><X className="h-4 w-4" /></Button>
+          </div>
+          <Input
+            ref={scanRef}
+            value={scan}
+            onChange={(e) => setScan(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
+            placeholder="Pasa la tarjeta por el lector (o escribe el código)..."
+            autoComplete="off"
+            autoFocus
+            className="text-center font-mono"
+          />
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={save} disabled={saving || !scan.trim()}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (selected.rfid ? 'Cambiar tarjeta' : 'Guardar tarjeta')}
+            </Button>
+            {selected.rfid && (
+              <Button variant="outline" onClick={remove} disabled={saving}>Quitar tarjeta</Button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function VoluntariosManager() {
@@ -158,9 +289,10 @@ export function VoluntariosManager() {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="personal">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="personal">Cargar Personal</TabsTrigger>
-            <TabsTrigger value="rfid">Vincular Tarjetas RFID</TabsTrigger>
+            <TabsTrigger value="rfid">Tarjetas (Excel)</TabsTrigger>
+            <TabsTrigger value="rfid-uno">Tarjeta individual</TabsTrigger>
         </TabsList>
 
         <TabsContent value="personal" className="space-y-4 pt-4">
@@ -181,6 +313,10 @@ export function VoluntariosManager() {
                     </Button>
                 </div>
             )}
+        </TabsContent>
+
+        <TabsContent value="rfid-uno" className="pt-4">
+            <RfidIndividual personal={sortedPersonal || []} />
         </TabsContent>
 
         <TabsContent value="rfid" className="space-y-4 pt-4">
