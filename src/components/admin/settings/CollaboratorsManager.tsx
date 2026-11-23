@@ -26,36 +26,34 @@ export function CollaboratorsManager() {
   const { data: collaborators, isLoading: loadingCollabs } = useCollection<Collaborator>(collabQuery);
 
   const handleAddCollaborator = async () => {
-    if (!firestore || !user || !email.trim()) return;
+    const typed = email.trim();
+    if (!firestore || !user || !typed) return;
     setIsLoading(true);
 
-    try {
-        // Buscamos si el usuario existe como admin autorizado
-        const authQuery = query(collection(firestore, 'authorizedAdmins'), where('email', '==', email.toLowerCase()));
-        const authSnap = await getDocs(authQuery);
+    const targetEmail = typed.toLowerCase();
+    // El correo guardado puede tener mayúsculas distintas según lo entregue Microsoft
+    const variants = Array.from(new Set([targetEmail, typed]));
 
+    try {
+        // 1) Debe estar en la lista de administradores autorizados
+        const authSnap = await getDocs(query(collection(firestore, 'authorizedAdmins'), where('email', 'in', variants)));
         if (authSnap.empty) {
-            toast({ variant: 'destructive', title: 'Error', description: 'El correo no está en la lista de administradores autorizados.' });
-            setIsLoading(false);
+            toast({ variant: 'destructive', title: 'Correo no autorizado', description: 'Ese correo no está en la lista de administradores autorizados.' });
             return;
         }
 
-        // Buscamos el UID del usuario (necesitamos que se haya logueado alguna vez o saber su UID)
-        // Por simplicidad en este MVP, asumiremos que usamos el email como ID del documento en collaborators
-        // Pero lo ideal es buscar el UID del perfil admin.
-        const targetEmail = email.toLowerCase();
-        
-        // Buscamos en la colección /admins para obtener el UID real
-        const adminQuery = query(collection(firestore, 'admins'), where('email', '==', targetEmail));
-        const adminSnap = await getDocs(adminQuery);
-
+        // 2) Debe haber iniciado sesión al menos una vez (ahí se crea su perfil con su UID)
+        const adminSnap = await getDocs(query(collection(firestore, 'admins'), where('email', 'in', variants)));
         if (adminSnap.empty) {
-            toast({ variant: 'destructive', title: 'Usuario no registrado', description: 'El administrador debe haber iniciado sesión al menos una vez.' });
-            setIsLoading(false);
+            toast({ variant: 'destructive', title: 'Aún no ha ingresado', description: 'Esa persona debe iniciar sesión en E-lector al menos una vez para poder añadirla.' });
             return;
         }
 
         const targetUid = adminSnap.docs[0].id;
+        if (targetUid === user.uid) {
+            toast({ variant: 'destructive', title: 'Ese eres tú', description: 'Ya eres el administrador de esta sala.' });
+            return;
+        }
 
         await setDoc(doc(firestore, 'admins', user.uid, 'collaborators', targetUid), {
             id: targetUid,
@@ -65,8 +63,16 @@ export function CollaboratorsManager() {
 
         toast({ title: 'Colaborador añadido', description: `${targetEmail} ahora puede gestionar esta sala.` });
         setEmail('');
-    } catch (e) {
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo añadir al colaborador.' });
+    } catch (e: any) {
+        console.error('Error al añadir colaborador:', e);
+        const denied = e?.code === 'permission-denied';
+        toast({
+            variant: 'destructive',
+            title: 'No se pudo añadir al colaborador',
+            description: denied
+                ? 'Permiso denegado por las reglas de Firestore. Hay que publicar las reglas actualizadas (firestore.rules).'
+                : `Error: ${e?.code || e?.message || 'desconocido'}`
+        });
     } finally {
         setIsLoading(false);
     }
@@ -90,6 +96,10 @@ export function CollaboratorsManager() {
             className="pl-9"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleAddCollaborator(); }}
+            type="email"
+            autoCapitalize="none"
+            autoComplete="off"
           />
         </div>
         <Button onClick={handleAddCollaborator} disabled={isLoading || !email}>

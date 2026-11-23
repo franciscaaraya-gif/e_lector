@@ -58,7 +58,11 @@ service cloud.firestore {
 
     match /admins/{adminId} {
       allow get: if true;
-      allow list: if isAuthorizedAdmin(adminId);
+      // Listar/buscar administradores (para añadir colaboradores por correo):
+      // dueño/colaborador de la sala, o cualquier usuario con sesión NO anónima.
+      // Los votantes son anónimos, así que no pueden listar.
+      allow list: if isAuthorizedAdmin(adminId) ||
+        (isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous');
       allow create, update, delete: if isAuthorizedAdmin(adminId);
 
       match /groups/{groupId} {

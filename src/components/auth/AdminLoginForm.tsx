@@ -124,7 +124,7 @@ export function AdminLoginForm() {
           if (!adminDocSnap.exists()) {
               await setDoc(adminDocRef, {
                   id: user.uid,
-                  email: user.email,
+                  email: user.email.toLowerCase(),
                   isBombero: true,
               });
           }
