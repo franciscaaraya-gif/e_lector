@@ -4,7 +4,7 @@ import { collection, query, orderBy, doc, writeBatch } from 'firebase/firestore'
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { MoreHorizontal, Eye, Trash2, Copy, QrCode, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import { MoreHorizontal, Eye, Trash2, Copy, Pencil, QrCode, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
@@ -52,7 +52,7 @@ const statusText: { [key: string]: string } = {
 };
 
 // Component to display poll card in mobile view
-function PollCard({ poll, onDeleteClick, onDuplicateClick }: { poll: Poll, onDeleteClick: (poll: Poll) => void, onDuplicateClick: (poll: Poll) => void }) {
+function PollCard({ poll, onDeleteClick, onDuplicateClick, onEditClick }: { poll: Poll, onDeleteClick: (poll: Poll) => void, onDuplicateClick: (poll: Poll) => void, onEditClick: (poll: Poll) => void }) {
   return (
     <Card>
       <CardHeader className='pb-4'>
@@ -70,6 +70,11 @@ function PollCard({ poll, onDeleteClick, onDuplicateClick }: { poll: Poll, onDel
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem asChild><Link href={`/admin/polls/${poll.id}`}>Ver detalles</Link></DropdownMenuItem>
+                  {poll.status === 'pending' && (
+                    <DropdownMenuItem onClick={() => onEditClick(poll)}>
+                      Editar
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => onDuplicateClick(poll)}>
                     Duplicar
                   </DropdownMenuItem>
@@ -178,7 +183,7 @@ function RoomAccessCard({ adminId }: { adminId: string }) {
 }
 
 // This component fetches and displays data, but does NOT manage the dialog
-function DashboardContents({ onPollDeleteClick, onPollDuplicateClick }: { onPollDeleteClick: (poll: Poll) => void, onPollDuplicateClick: (poll: Poll) => void }) {
+function DashboardContents({ onPollDeleteClick, onPollDuplicateClick, onPollEditClick }: { onPollDeleteClick: (poll: Poll) => void, onPollDuplicateClick: (poll: Poll) => void, onPollEditClick: (poll: Poll) => void }) {
     const firestore = useFirestore();
     const { user } = useUser();
     
@@ -238,7 +243,7 @@ function DashboardContents({ onPollDeleteClick, onPollDuplicateClick }: { onPoll
                 ) : (
                     <>
                         <div className="md:hidden space-y-4">
-                            {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={onPollDeleteClick} onDuplicateClick={onPollDuplicateClick} />)}
+                            {polls.map((poll) => <PollCard key={poll.id} poll={poll} onDeleteClick={onPollDeleteClick} onDuplicateClick={onPollDuplicateClick} onEditClick={onPollEditClick} />)}
                         </div>
                         <div className="hidden md:block">
                             <Table>
@@ -264,6 +269,16 @@ function DashboardContents({ onPollDeleteClick, onPollDuplicateClick }: { onPoll
                                                   Detalles
                                               </Link>
                                           </Button>
+                                          {poll.status === 'pending' && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => onPollEditClick(poll)}
+                                            >
+                                                <Pencil className="mr-2 h-4 w-4" />
+                                                Editar
+                                            </Button>
+                                          )}
                                           <Button
                                               variant="outline"
                                               size="sm"
@@ -302,6 +317,7 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [pollToDelete, setPollToDelete] = useState<Poll | null>(null);
   const [pollToDuplicate, setPollToDuplicate] = useState<Poll | null>(null);
+  const [pollToEdit, setPollToEdit] = useState<Poll | null>(null);
 
   const handleDeleteConfirm = async () => {
     if (!pollToDelete || !firestore || !user) return;
@@ -336,7 +352,7 @@ export default function DashboardPage() {
         <CardDescription>Crea y administra tus votaciones anónimas desde aquí.</CardDescription>
       </CardHeader>
       
-      <DashboardContents onPollDeleteClick={setPollToDelete} onPollDuplicateClick={setPollToDuplicate} />
+      <DashboardContents onPollDeleteClick={setPollToDelete} onPollDuplicateClick={setPollToDuplicate} onPollEditClick={setPollToEdit} />
 
       {/* Se monta solo al duplicar, ya con los datos de la votación elegida */}
       {pollToDuplicate && (
@@ -345,6 +361,17 @@ export default function DashboardPage() {
           sourcePoll={pollToDuplicate}
           open
           onOpenChange={(isOpen) => { if (!isOpen) setPollToDuplicate(null); }}
+          hideTrigger
+        />
+      )}
+
+      {/* Edición: solo votaciones pendientes */}
+      {pollToEdit && (
+        <CreatePollDialog
+          key={`edit-${pollToEdit.id}`}
+          editPoll={pollToEdit}
+          open
+          onOpenChange={(isOpen) => { if (!isOpen) setPollToEdit(null); }}
           hideTrigger
         />
       )}
