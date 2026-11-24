@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, serverTimestamp, doc, query, where, writeBatch } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, query, where, writeBatch, getDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { PlusCircle, Loader2, Trash2, Plus, GripVertical } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -157,6 +157,8 @@ function buildInitialValues(source?: Poll | null): z.infer<typeof formSchema> {
 type CreatePollDialogProps = {
   /** Votación a duplicar: precarga pregunta, opciones y tipo (se crea una votación nueva). */
   sourcePoll?: Poll | null;
+  /** Votación pendiente a editar: precarga sus datos y al guardar la actualiza (no crea otra). */
+  editPoll?: Poll | null;
   /** Control externo del diálogo (opcional). Sin esto el diálogo maneja su propio estado. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -164,7 +166,10 @@ type CreatePollDialogProps = {
   hideTrigger?: boolean;
 };
 
-export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hideTrigger }: CreatePollDialogProps = {}) {
+export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: openProp, onOpenChange, hideTrigger }: CreatePollDialogProps = {}) {
+  // Para precargar datos da lo mismo si se duplica o se edita
+  const sourcePoll = editPoll ?? duplicateOf;
+  const isEditing = !!editPoll;
   const [internalOpen, setInternalOpen] = useState(false);
   const open = openProp ?? internalOpen;
   const setOpen = (value: boolean) => {
@@ -239,6 +244,35 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
     setIsLoading(true);
 
     try {
+        if (editPoll) {
+            const pollRef = doc(firestore, 'admins', editPoll.adminId || user.uid, 'polls', editPoll.id);
+            // Se vuelve a verificar el estado: solo se edita mientras esté pendiente
+            const current = await getDoc(pollRef);
+            if (!current.exists() || current.data().status !== 'pending') {
+                toast({ variant: 'destructive', title: 'No se puede editar', description: 'La votación ya fue iniciada o cerrada.' });
+                setOpen(false);
+                return;
+            }
+            try {
+                await updateDoc(pollRef, {
+                    question: values.question,
+                    options: values.options.map((opt, index) => ({ id: `opt_${index + 1}`, text: opt.text })),
+                    pollType: values.pollType,
+                    maxSelections: values.pollType === 'multiple' ? values.maxSelections : deleteField(),
+                });
+            } catch (error: any) {
+                errorEmitter.emit('permission-error', new FirestorePermissionError({
+                    path: pollRef.path,
+                    operation: 'update',
+                    requestResourceData: values,
+                }));
+                return;
+            }
+            toast({ title: 'Votación actualizada', description: 'Los cambios se guardaron.' });
+            setOpen(false);
+            return;
+        }
+
         const pollsCollection = collection(firestore, 'admins', user.uid, 'polls');
         const newPollRef = doc(pollsCollection);
 
@@ -308,9 +342,11 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
       )}
       <DialogContent className="sm:max-w-xl max-h-[90dvh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>{sourcePoll ? 'Duplicar Votación' : 'Crear Nueva Votación'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Editar Votación' : sourcePoll ? 'Duplicar Votación' : 'Crear Nueva Votación'}</DialogTitle>
           <DialogDescription>
-            {sourcePoll
+            {isEditing
+              ? 'Solo se puede editar mientras la votación está pendiente. «Blanco» y «Nulo» siempre quedan al final.'
+              : sourcePoll
               ? 'Se copiaron la pregunta, las opciones y el tipo. Revísalos y guarda: se crea una votación nueva y pendiente, sin grupo ni votos.'
               : 'Configura los detalles de tu votación. "Blanco" y "Nulo" siempre estarán al final.'}
           </DialogDescription>
@@ -324,6 +360,7 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
             }}
             className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4"
           >
+            {!isEditing && (
             <div className="space-y-2">
               <Label>Plantilla (Opcional)</Label>
               <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
@@ -340,6 +377,7 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
                 </SelectContent>
               </Select>
             </div>
+            )}
             
             <FormField
               control={form.control}
@@ -465,7 +503,7 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
               </Button>
               <Button type="submit" disabled={isLoading}>
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Guardar
+                {isEditing ? 'Guardar cambios' : 'Guardar'}
               </Button>
             </DialogFooter>
           </form>
