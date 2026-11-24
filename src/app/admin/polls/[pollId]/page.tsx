@@ -83,6 +83,16 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
         return sortPeople(baseList, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
     }, [votersStatus]);
 
+    // Nombres repetidos en el registro: se marcan, y se muestra el N° de registro de cada uno
+    // para distinguir si es la misma persona con dos registros o dos personas distintas.
+    const repeatedNames = useMemo(() => {
+        const norm = (v: { nombre: string; apellido: string }) =>
+            `${v.apellido} ${v.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+        const count = new Map<string, number>();
+        mergedVoters.forEach(v => count.set(norm(v), (count.get(norm(v)) || 0) + 1));
+        return new Set(Array.from(count.entries()).filter(([, n]) => n > 1).map(([k]) => k));
+    }, [mergedVoters]);
+
     const stats = useMemo(() => {
         const total = mergedVoters.length;
         const enabled = mergedVoters.filter(v => v.enabled).length;
@@ -312,6 +322,9 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                         <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
                                             <TableCell className="font-medium">
                                                 {formatFullName(voter.nombre, voter.apellido)}
+                                                {repeatedNames.has(`${voter.apellido} ${voter.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()) && (
+                                                    <Badge variant="destructive" className="ml-2 text-[10px]">Repetido · reg. {voter.id}{voter.hasVoted ? ' · votó' : ''}</Badge>
+                                                )}
                                             </TableCell>
                                             {(poll.status === 'pending' || poll.status === 'active') && (
                                                 <TableCell>
