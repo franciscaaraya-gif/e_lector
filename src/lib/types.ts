@@ -17,6 +17,8 @@ export type Poll = {
   pollType: PollType;
   maxSelections?: number;
   groupId?: string;
+  /** Elección de cargo: al escribir las opciones se sugieren nombres de voluntarios. */
+  eleccionDeCargo?: boolean;
   createdAt: Timestamp;
   activatedAt?: Timestamp;
   closedAt?: Timestamp;
