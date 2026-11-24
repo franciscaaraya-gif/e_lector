@@ -12,8 +12,8 @@ import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck
 import Link from 'next/link';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState, useMemo, useRef } from 'react';
-import { syncGroupToPolls } from '@/lib/group-sync';
+import { useEffect, useState, useMemo } from 'react';
+import { syncPollWithGroup } from '@/lib/group-sync';
 import PollDetailsLoading from './loading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -61,6 +61,7 @@ type MergedVoter = {
     hasVoted: boolean;
     statusDocId: string;
     enabled: boolean;
+    agregadoDespues?: boolean;
 };
 
 function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: VoterStatus[], votes: Vote[] | null }) {
@@ -78,6 +79,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
             hasVoted: v.hasVoted,
             statusDocId: v.id,
             enabled: v.enabled !== false,
+            agregadoDespues: v.agregadoDespues === true,
         }));
         
         return sortPeople(baseList, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
@@ -322,6 +324,9 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                         <TableRow key={voter.id} className={!voter.enabled ? 'opacity-60 bg-muted/30' : ''}>
                                             <TableCell className="font-medium">
                                                 {formatFullName(voter.nombre, voter.apellido)}
+                                                {voter.agregadoDespues && (
+                                                    <Badge className="ml-2 text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">Agregado después</Badge>
+                                                )}
                                                 {repeatedNames.has(`${voter.apellido} ${voter.nombre}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()) && (
                                                     <Badge variant="destructive" className="ml-2 text-[10px]">Repetido · reg. {voter.id}{voter.hasVoted ? ' · votó' : ''}</Badge>
                                                 )}
@@ -409,56 +414,50 @@ export default function PollDetailsPage() {
   }, [firestore, user, pollId]);
   const { data: votes } = useCollection<Vote>(votesQuery);
 
-  // Red de seguridad: si el grupo asignado cambió y el registro quedó distinto, se sincroniza solo.
+  // Comparación manual entre el grupo asignado y el registro de esta votación.
+  // NO se actualiza nada solo: el administrador revisa la diferencia y decide.
   const assignedGroupRef = useMemoFirebase(() => {
     if (!firestore || !user || !poll?.groupId || (poll.status !== 'pending' && poll.status !== 'active')) return null;
     return doc(firestore, 'admins', user.uid, 'groups', poll.groupId);
   }, [firestore, user, poll?.groupId, poll?.status]);
   const { data: assignedGroup } = useDoc<VoterGroup>(assignedGroupRef);
 
-  const lastSyncSignature = useRef('');
-  const [syncError, setSyncError] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [dismissedSignature, setDismissedSignature] = useState('');
 
   const syncDiff = useMemo(() => {
     if (!assignedGroup || !votersStatus) return null;
+    const nameOf = (x: { nombre?: string; apellido?: string }) => `${x.apellido || ''} ${x.nombre || ''}`.trim();
+    const members = assignedGroup.voters || [];
     const have = new Set(votersStatus.map(v => v.voterId));
-    const want = new Set((assignedGroup.voters || []).map(m => m.id));
-    const toAdd = (assignedGroup.voters || []).filter(m => !have.has(m.id));
-    const toRemove = votersStatus.filter(v => !want.has(v.voterId) && !v.hasVoted);
+    const want = new Set(members.map(m => m.id));
+    const toAdd = members.filter(m => !have.has(m.id)).map(nameOf);
+    const toRemove = votersStatus.filter(v => !want.has(v.voterId) && !v.hasVoted).map(nameOf);
+    const staysVoted = votersStatus.filter(v => !want.has(v.voterId) && v.hasVoted).map(nameOf);
     const dups = votersStatus.length - have.size; // personas repetidas en el registro
-    return { toAdd, toRemove, dups };
+    const signature = [...toAdd, '|', ...toRemove, '|', ...staysVoted, '|', String(dups)].join(',');
+    return { toAdd, toRemove, staysVoted, dups, groupCount: members.length, registryCount: votersStatus.length, signature };
   }, [assignedGroup, votersStatus]);
 
-  const runGroupSync = async (manual = false) => {
-    if (!firestore || !user || !poll?.groupId || !assignedGroup) return;
+  const applyGroupChanges = async () => {
+    if (!firestore || !user || !poll?.id || !assignedGroup) return;
     setIsSyncing(true);
     setSyncError(null);
     try {
-      const results = await syncGroupToPolls(firestore, user.uid, poll.groupId, assignedGroup.voters || []);
-      if (results.length > 0 || manual) {
-        toast({ title: 'Registro sincronizado con el grupo', description: 'Se aplicaron los cambios del grupo a esta votación.' });
-      }
+      const r = await syncPollWithGroup(firestore, user.uid, poll.id, assignedGroup.voters || []);
+      const parts: string[] = [];
+      if (r.added.length) parts.push(`${r.added.length} agregado(s)`);
+      if (r.removed.length) parts.push(`${r.removed.length} quitado(s)`);
+      if (r.deduped.length) parts.push(`${r.deduped.length} repetido(s) eliminado(s)`);
+      toast({ title: 'Registro actualizado', description: parts.join(' · ') || 'Sin cambios.' });
     } catch (e: any) {
-      console.error('No se pudo sincronizar con el grupo:', e);
+      console.error('No se pudo actualizar el registro con el grupo:', e);
       setSyncError(e?.code || e?.message || 'desconocido');
     } finally {
       setIsSyncing(false);
     }
   };
-
-  useEffect(() => {
-    if (!syncDiff || isAssigning) return;
-    if (syncDiff.toAdd.length === 0 && syncDiff.toRemove.length === 0 && syncDiff.dups === 0) {
-      lastSyncSignature.current = '';
-      return;
-    }
-    const signature = syncDiff.toAdd.map(m => m.id).join(',') + '|' + syncDiff.toRemove.map(v => v.voterId).join(',') + '|' + syncDiff.dups;
-    if (signature === lastSyncSignature.current) return; // ya se intentó con estos mismos datos
-    lastSyncSignature.current = signature;
-    runGroupSync();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [syncDiff, isAssigning]);
 
   const allGroupsQuery = useMemoFirebase(() => {
       if (!firestore || !user || poll?.status !== 'pending') return null;
@@ -665,20 +664,36 @@ export default function PollDetailsPage() {
           </div>
       )}
       
-      {syncDiff && (syncDiff.toAdd.length > 0 || syncDiff.toRemove.length > 0 || syncDiff.dups > 0) && (
+      {syncDiff && syncDiff.signature !== dismissedSignature && (syncDiff.toAdd.length > 0 || syncDiff.toRemove.length > 0 || syncDiff.dups > 0) && (
           <Card className="border-orange-300 bg-orange-50">
-              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="text-sm text-orange-900">
-                      <p className="font-semibold">El grupo cambió y este registro aún no coincide.</p>
-                      <p className="text-xs">
-                          {syncDiff.toAdd.length} por agregar · {syncDiff.toRemove.length} por quitar{syncDiff.dups > 0 ? ` · ${syncDiff.dups} repetido(s)` : ''}.
-                          {syncError && <span className="font-bold"> No se pudo sincronizar automáticamente (error: {syncError}).</span>}
+              <CardContent className="p-4 space-y-3">
+                  <div className="text-sm text-orange-900 space-y-1">
+                      <p className="font-semibold">
+                          Comparé el grupo con el registro: el grupo tiene {syncDiff.groupCount} miembros y el registro {syncDiff.registryCount}.
                       </p>
+                      {syncDiff.toAdd.length > 0 && (
+                          <p className="text-xs"><strong>Entrarían ({syncDiff.toAdd.length}):</strong> {syncDiff.toAdd.join(', ')}. Quedarían marcados como «agregado después» para que puedas deshabilitarlos.</p>
+                      )}
+                      {syncDiff.toRemove.length > 0 && (
+                          <p className="text-xs"><strong>Saldrían ({syncDiff.toRemove.length}, aún no votan):</strong> {syncDiff.toRemove.join(', ')}.</p>
+                      )}
+                      {syncDiff.staysVoted.length > 0 && (
+                          <p className="text-xs"><strong>Ya no están en el grupo pero ya votaron (se mantienen):</strong> {syncDiff.staysVoted.join(', ')}.</p>
+                      )}
+                      {syncDiff.dups > 0 && (
+                          <p className="text-xs"><strong>{syncDiff.dups} registro(s) repetido(s)</strong> se dejarían en uno solo.</p>
+                      )}
+                      {syncError && <p className="text-xs font-bold text-destructive">No se pudo actualizar (error: {syncError}).</p>}
                   </div>
-                  <Button size="sm" onClick={() => runGroupSync(true)} disabled={isSyncing}>
-                      {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                      Sincronizar ahora
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={applyGroupChanges} disabled={isSyncing}>
+                          {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Actualizar registro con el grupo
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setDismissedSignature(syncDiff.signature)} disabled={isSyncing}>
+                          Dejar como está
+                      </Button>
+                  </div>
               </CardContent>
           </Card>
       )}

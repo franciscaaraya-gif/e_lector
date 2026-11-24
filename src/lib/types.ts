@@ -63,6 +63,8 @@ export type VoterStatus = {
   enabled?: boolean;
   nombre?: string; 
   apellido?: string; 
+  /** Se agregó al registro después de asignar el grupo (al actualizar el registro con el grupo). */
+  agregadoDespues?: boolean;
 };
 
 export type PollLookup = {

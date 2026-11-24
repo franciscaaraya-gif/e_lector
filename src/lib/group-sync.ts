@@ -1,13 +1,10 @@
-import { collection, doc, getDocs, query, where, writeBatch, Firestore } from 'firebase/firestore';
+import { collection, doc, getDocs, writeBatch, serverTimestamp, Firestore } from 'firebase/firestore';
 import type { VoterInfo } from '@/lib/types';
 
 export type PollSyncResult = {
-  pollId: string;
-  question: string;
-  status: string;
   added: string[];
   removed: string[];
-  /** Personas que salieron del grupo pero ya habían votado: se conservan en el registro. */
+  /** Personas que ya no están en el grupo pero ya habían votado: se conservan en el registro. */
   keptBecauseVoted: string[];
   /** Registros repetidos de una misma persona que se limpiaron. */
   deduped: string[];
@@ -17,100 +14,78 @@ const fullName = (v: { nombre?: string; apellido?: string }) =>
   `${v.apellido || ''} ${v.nombre || ''}`.trim();
 
 /**
- * Deja el registro de votantes de las votaciones PENDIENTES o ACTIVAS que usan este grupo
- * igual a los miembros actuales del grupo:
- *  - quien entra al grupo aparece en el registro, habilitado (se puede bloquear a mano);
- *  - quien sale del grupo se quita del registro, salvo que ya haya votado
- *    (para no romper la cuadratura de votos).
- * Es idempotente: se puede llamar varias veces seguidas.
+ * Actualiza el registro de votantes de UNA votación para que coincida con los miembros del grupo.
+ * Solo se ejecuta cuando el administrador lo pide (nunca automáticamente):
+ *  - quien entró al grupo se agrega al registro, habilitado y marcado como «agregado después»;
+ *  - quien salió del grupo y NO ha votado se quita del registro;
+ *  - quien salió pero YA votó se conserva (para no romper la cuadratura de votos);
+ *  - si una persona quedó repetida, se deja un solo registro.
  */
-export async function syncGroupToPolls(
+export async function syncPollWithGroup(
   firestore: Firestore,
   adminId: string,
-  groupId: string,
+  pollId: string,
   members: VoterInfo[]
-): Promise<PollSyncResult[]> {
-  // Solo un filtro en el servidor (no requiere índice); el estado se filtra aquí.
-  const pollsSnap = await getDocs(
-    query(collection(firestore, 'admins', adminId, 'polls'), where('groupId', '==', groupId))
-  );
+): Promise<PollSyncResult> {
+  const votersRef = collection(firestore, 'admins', adminId, 'polls', pollId, 'voters');
+  const votersSnap = await getDocs(votersRef);
 
-  const results: PollSyncResult[] = [];
+  type VoterDoc = { ref: (typeof votersSnap.docs)[number]['ref']; data: any };
+  const byVoter = new Map<string, VoterDoc[]>();
+  votersSnap.forEach(d => {
+    const vid = (d.data() as any).voterId;
+    const list = byVoter.get(vid) || [];
+    list.push({ ref: d.ref, data: d.data() });
+    byVoter.set(vid, list);
+  });
 
-  for (const pollDoc of pollsSnap.docs) {
-    const poll = pollDoc.data() as { question?: string; status?: string };
-    if (poll.status !== 'pending' && poll.status !== 'active') continue;
-    const votersRef = collection(firestore, 'admins', adminId, 'polls', pollDoc.id, 'voters');
-    const votersSnap = await getDocs(votersRef);
+  const batch = writeBatch(firestore);
+  const result: PollSyncResult = { added: [], removed: [], keptBecauseVoted: [], deduped: [] };
 
-    // Agrupar por persona. Si una persona quedó repetida (por ejemplo por dos sincronizaciones
-    // a la vez), se conserva un solo registro (preferentemente el que ya votó) y se borran los demás.
-    type VoterDoc = { ref: (typeof votersSnap.docs)[number]['ref']; data: any };
-    const byVoter = new Map<string, VoterDoc[]>();
-    votersSnap.forEach(d => {
-      const vid = (d.data() as any).voterId;
-      const list = byVoter.get(vid) || [];
-      list.push({ ref: d.ref, data: d.data() });
-      byVoter.set(vid, list);
-    });
-
-    const batch = writeBatch(firestore);
-    const dedupedNames: string[] = [];
-    const existing = new Map<string, VoterDoc>();
-    byVoter.forEach((list, vid) => {
-      const keep = list.find(x => x.data.hasVoted) || list.find(x => x.data.enabled === false) || list[0];
-      existing.set(vid, keep);
-      list.forEach(x => {
-        if (x !== keep) {
-          batch.delete(x.ref);
-          dedupedNames.push(fullName(x.data));
-        }
-      });
-    });
-    const desired = new Map(members.map(m => [m.id, m]));
-    const result: PollSyncResult = {
-      pollId: pollDoc.id,
-      question: poll.question || '',
-      status: poll.status || '',
-      added: [],
-      removed: [],
-      keptBecauseVoted: [],
-      deduped: dedupedNames,
-    };
-
-    desired.forEach((m, id) => {
-      if (existing.has(id)) return;
-      // ID fijo por persona: si dos sincronizaciones corren a la vez escriben el MISMO documento
-      // y no se duplica.
-      batch.set(doc(votersRef, `v_${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`), {
-        voterId: id,
-        pollId: pollDoc.id,
-        hasVoted: false,
-        adminId,
-        enabled: true,
-        nombre: m.nombre || '',
-        apellido: m.apellido || '',
-      });
-      result.added.push(fullName(m));
-    });
-
-    existing.forEach((e, id) => {
-      if (desired.has(id)) return;
-      if (e.data.hasVoted) {
-        result.keptBecauseVoted.push(fullName(e.data));
-      } else {
-        batch.delete(e.ref);
-        result.removed.push(fullName(e.data));
+  // Una persona repetida: se conserva un solo registro (el que ya votó, si lo hay)
+  const existing = new Map<string, VoterDoc>();
+  byVoter.forEach((list, vid) => {
+    const keep = list.find(x => x.data.hasVoted) || list.find(x => x.data.enabled === false) || list[0];
+    existing.set(vid, keep);
+    list.forEach(x => {
+      if (x !== keep) {
+        batch.delete(x.ref);
+        result.deduped.push(fullName(x.data));
       }
     });
+  });
 
-    if (result.added.length || result.removed.length || result.deduped.length) {
-      await batch.commit();
+  const desired = new Map(members.map(m => [m.id, m]));
+
+  desired.forEach((m, id) => {
+    if (existing.has(id)) return;
+    // ID fijo por persona: aunque se pulse dos veces, escribe el mismo documento y no se duplica
+    batch.set(doc(votersRef, `v_${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`), {
+      voterId: id,
+      pollId,
+      hasVoted: false,
+      adminId,
+      enabled: true,
+      nombre: m.nombre || '',
+      apellido: m.apellido || '',
+      agregadoDespues: true,
+      agregadoAt: serverTimestamp(),
+    });
+    result.added.push(fullName(m));
+  });
+
+  existing.forEach((e, id) => {
+    if (desired.has(id)) return;
+    if (e.data.hasVoted) {
+      result.keptBecauseVoted.push(fullName(e.data));
+    } else {
+      batch.delete(e.ref);
+      result.removed.push(fullName(e.data));
     }
-    if (result.added.length || result.removed.length || result.keptBecauseVoted.length || result.deduped.length) {
-      results.push(result);
-    }
+  });
+
+  if (result.added.length || result.removed.length || result.deduped.length) {
+    await batch.commit();
   }
-
-  return results;
+  return result;
 }
