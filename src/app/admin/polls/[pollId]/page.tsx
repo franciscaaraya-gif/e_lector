@@ -12,7 +12,8 @@ import { CheckCircle, XCircle, Copy, Users, Link as LinkIcon, Loader2, UserCheck
 import Link from 'next/link';
 import Image from 'next/image';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { syncGroupToPolls } from '@/lib/group-sync';
 import PollDetailsLoading from './loading';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -395,6 +396,56 @@ export default function PollDetailsPage() {
   }, [firestore, user, pollId]);
   const { data: votes } = useCollection<Vote>(votesQuery);
 
+  // Red de seguridad: si el grupo asignado cambió y el registro quedó distinto, se sincroniza solo.
+  const assignedGroupRef = useMemoFirebase(() => {
+    if (!firestore || !user || !poll?.groupId || (poll.status !== 'pending' && poll.status !== 'active')) return null;
+    return doc(firestore, 'admins', user.uid, 'groups', poll.groupId);
+  }, [firestore, user, poll?.groupId, poll?.status]);
+  const { data: assignedGroup } = useDoc<VoterGroup>(assignedGroupRef);
+
+  const lastSyncSignature = useRef('');
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const syncDiff = useMemo(() => {
+    if (!assignedGroup || !votersStatus) return null;
+    const have = new Set(votersStatus.map(v => v.voterId));
+    const want = new Set((assignedGroup.voters || []).map(m => m.id));
+    const toAdd = (assignedGroup.voters || []).filter(m => !have.has(m.id));
+    const toRemove = votersStatus.filter(v => !want.has(v.voterId) && !v.hasVoted);
+    return { toAdd, toRemove };
+  }, [assignedGroup, votersStatus]);
+
+  const runGroupSync = async (manual = false) => {
+    if (!firestore || !user || !poll?.groupId || !assignedGroup) return;
+    setIsSyncing(true);
+    setSyncError(null);
+    try {
+      const results = await syncGroupToPolls(firestore, user.uid, poll.groupId, assignedGroup.voters || []);
+      if (results.length > 0 || manual) {
+        toast({ title: 'Registro sincronizado con el grupo', description: 'Se aplicaron los cambios del grupo a esta votación.' });
+      }
+    } catch (e: any) {
+      console.error('No se pudo sincronizar con el grupo:', e);
+      setSyncError(e?.code || e?.message || 'desconocido');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!syncDiff || isAssigning) return;
+    if (syncDiff.toAdd.length === 0 && syncDiff.toRemove.length === 0) {
+      lastSyncSignature.current = '';
+      return;
+    }
+    const signature = syncDiff.toAdd.map(m => m.id).join(',') + '|' + syncDiff.toRemove.map(v => v.voterId).join(',');
+    if (signature === lastSyncSignature.current) return; // ya se intentó con estos mismos datos
+    lastSyncSignature.current = signature;
+    runGroupSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncDiff, isAssigning]);
+
   const allGroupsQuery = useMemoFirebase(() => {
       if (!firestore || !user || poll?.status !== 'pending') return null;
       return collection(firestore, 'admins', user.uid, 'groups');
@@ -600,6 +651,24 @@ export default function PollDetailsPage() {
           </div>
       )}
       
+      {syncDiff && (syncDiff.toAdd.length > 0 || syncDiff.toRemove.length > 0) && (
+          <Card className="border-orange-300 bg-orange-50">
+              <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-sm text-orange-900">
+                      <p className="font-semibold">El grupo cambió y este registro aún no coincide.</p>
+                      <p className="text-xs">
+                          {syncDiff.toAdd.length} por agregar · {syncDiff.toRemove.length} por quitar.
+                          {syncError && <span className="font-bold"> No se pudo sincronizar automáticamente (error: {syncError}).</span>}
+                      </p>
+                  </div>
+                  <Button size="sm" onClick={() => runGroupSync(true)} disabled={isSyncing}>
+                      {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                      Sincronizar ahora
+                  </Button>
+              </CardContent>
+          </Card>
+      )}
+
       {votersStatus && (
           <VoterList poll={poll} votersStatus={votersStatus} votes={votes || null} />
       )}
