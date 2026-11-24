@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { cn, sortPeople, formatFullName } from "@/lib/utils";
+import { cn, sortPeople, formatFullName, exclusiveOptionKind } from "@/lib/utils";
 
 const PARTICLES = new Set(['de', 'del', 'la', 'las', 'los', 'san', 'santa', 'y']);
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
@@ -125,8 +125,17 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             return acc;
         }, {} as { [key: string]: number });
 
+        const nuloId = poll.options.find(o => exclusiveOptionKind(o.text) === 'nulo')?.id;
+        const blancoId = poll.options.find(o => exclusiveOptionKind(o.text) === 'blanco')?.id;
+
         votes.forEach(vote => {
-            vote.selectedOptions.forEach(optionId => {
+            // Una papeleta que incluye «Nulo» se anula completa y cuenta solo como Nulo;
+            // una que incluye «Blanco» junto a otras opciones cuenta solo como Blanco.
+            let counted = vote.selectedOptions;
+            if (nuloId !== undefined && counted.includes(nuloId)) counted = [nuloId];
+            else if (blancoId !== undefined && counted.includes(blancoId)) counted = [blancoId];
+
+            counted.forEach(optionId => {
                 if (results[optionId] !== undefined) {
                     results[optionId]++;
                 }

@@ -24,7 +24,7 @@ import { Label } from '@/components/ui/label';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
+import { cn, exclusiveOptionKind } from '@/lib/utils';
 
 function VotePageClient() {
     const { pollId } = useParams() as { pollId: string };
@@ -133,6 +133,14 @@ function VotePageClient() {
     async function onSubmit(values: z.infer<typeof formSchema>) {
         if (!firestore || !poll || !adminId || !voterDocId) {
             toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar el voto. Faltan datos.' });
+            return;
+        }
+
+        // Defensa: «Blanco»/«Nulo» no pueden ir junto a otras opciones
+        const chosen = Array.isArray(values.selectedOptions) ? values.selectedOptions : [values.selectedOptions];
+        const hasExclusive = poll.options.some(o => chosen.includes(String(o.id)) && exclusiveOptionKind(o.text));
+        if (hasExclusive && chosen.length > 1) {
+            toast({ variant: 'destructive', title: 'Selección no válida', description: '«Blanco» y «Nulo» no se pueden combinar con otras opciones.' });
             return;
         }
 
@@ -258,7 +266,7 @@ function VotePageClient() {
                         <CardDescription className="text-base">
                             {poll.pollType === 'simple'
                                 ? 'Selecciona una única opción de la lista.'
-                                : `Puedes seleccionar hasta ${poll.maxSelections} opciones de la lista.`}
+                                : `Puedes seleccionar hasta ${poll.maxSelections} opciones de la lista. «Blanco» y «Nulo» no se pueden combinar con otras opciones.`}
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="px-6">
@@ -309,9 +317,20 @@ function VotePageClient() {
                                                     const isSelected = currentValues.includes(String(option.id));
                                                     
                                                     const handleToggle = () => {
-                                                        const next = isSelected 
-                                                            ? currentValues.filter(v => v !== String(option.id))
-                                                            : [...currentValues, String(option.id)];
+                                                        // «Blanco» y «Nulo» son excluyentes: al elegir uno se quitan las demás opciones,
+                                                        // y al elegir cualquier otra opción se quitan «Blanco» y «Nulo».
+                                                        const exclusiveIds = poll.options
+                                                            .filter(o => exclusiveOptionKind(o.text))
+                                                            .map(o => String(o.id));
+                                                        const thisIsExclusive = !!exclusiveOptionKind(option.text);
+                                                        let next: string[];
+                                                        if (isSelected) {
+                                                            next = currentValues.filter(v => v !== String(option.id));
+                                                        } else if (thisIsExclusive) {
+                                                            next = [String(option.id)];
+                                                        } else {
+                                                            next = [...currentValues.filter(v => !exclusiveIds.includes(v)), String(option.id)];
+                                                        }
                                                         
                                                         if (!isSelected && poll.maxSelections && next.length > poll.maxSelections) {
                                                             toast({

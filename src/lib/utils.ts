@@ -42,6 +42,17 @@ export function sortPeople<T>(
 /**
  * Formatea el nombre de una persona en el estándar institucional: "APELLIDOS Nombres"
  */
+/**
+ * «Blanco» y «Nulo» son opciones excluyentes: no se pueden combinar con otras.
+ * Devuelve 'blanco' | 'nulo' si el texto de la opción corresponde, o null.
+ */
+export function exclusiveOptionKind(text?: string): 'blanco' | 'nulo' | null {
+  const t = (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  if (/^(voto )?(en )?blanco$/.test(t)) return 'blanco';
+  if (/^(voto )?nulo$/.test(t)) return 'nulo';
+  return null;
+}
+
 export function formatFullName(nombres?: string, apellidos?: string): string {
   const nom = nombres?.trim() || '';
   const ape = apellidos?.trim() || '';
