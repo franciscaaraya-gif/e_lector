@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { CheckCircle2, ArrowLeft, Home } from "lucide-react";
+import { CheckCircle2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ElectorIcon } from "@/components/icons";
@@ -19,10 +19,10 @@ function VoteSuccessClient() {
   return (
     <div className="w-full max-w-md text-center">
         <div className="flex justify-center mb-8">
-            <Link href="/" className="flex items-center justify-center gap-2" prefetch={false}>
+            <div className="flex items-center justify-center gap-2">
                 <ElectorIcon className="h-10 w-10 text-primary" />
                 <span className="text-2xl font-bold tracking-tight text-primary font-headline">E-lector</span>
-            </Link>
+            </div>
         </div>
         <Card className="shadow-lg">
             <CardHeader className="items-center">
@@ -39,12 +39,6 @@ function VoteSuccessClient() {
                             Volver a mis votaciones
                         </Link>
                     </Button>
-                    <Button asChild variant="ghost" className="w-full">
-                        <Link href="/">
-                            <Home className="mr-2 h-4 w-4" />
-                            Ir al Inicio
-                        </Link>
-                    </Button>
                 </div>
             </CardContent>
         </Card>
@@ -56,10 +50,10 @@ function SuccessLoadingFallback() {
     return (
       <div className="w-full max-w-md text-center">
         <div className="flex justify-center mb-8">
-          <Link href="/" className="flex items-center justify-center gap-2" prefetch={false}>
+          <div className="flex items-center justify-center gap-2">
               <ElectorIcon className="h-10 w-10 text-primary" />
               <span className="text-2xl font-bold tracking-tight text-primary font-headline">E-lector</span>
-          </Link>
+          </div>
         </div>
         <Card className="shadow-lg">
             <CardHeader className="items-center">

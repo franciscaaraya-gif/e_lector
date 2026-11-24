@@ -178,10 +178,10 @@ function VotePageClient() {
     
     const headerContent = (
         <div className="flex justify-center mb-8">
-            <Link href="/" className="flex items-center justify-center gap-2" prefetch={false}>
+            <div className="flex items-center justify-center gap-2">
                 <ElectorIcon className="h-10 w-10 text-primary" />
                 <span className="text-2xl font-bold tracking-tight text-primary font-headline">E-lector</span>
-            </Link>
+            </div>
         </div>
     );
     
