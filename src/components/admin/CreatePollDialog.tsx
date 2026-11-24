@@ -20,6 +20,7 @@ import {
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -181,7 +182,8 @@ export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: open
   const firestore = useFirestore();
   const { user } = useUser();
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('custom');
-  const [isCargoElection, setIsCargoElection] = useState(false);
+  // Al editar o duplicar se conserva el modo «elección de cargo» (sugerencia de nombres) de la votación original
+  const [isCargoElection, setIsCargoElection] = useState(!!sourcePoll?.eleccionDeCargo);
 
   const templatesQuery = useMemoFirebase(() => {
     if (!user || !firestore) return null;
@@ -235,7 +237,7 @@ export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: open
     form.reset(buildInitialValues(sourcePoll));
     setIsLoading(false);
     setSelectedTemplateId('custom');
-    setIsCargoElection(false);
+    setIsCargoElection(!!sourcePoll?.eleccionDeCargo);
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -259,6 +261,7 @@ export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: open
                     options: values.options.map((opt, index) => ({ id: `opt_${index + 1}`, text: opt.text })),
                     pollType: values.pollType,
                     maxSelections: values.pollType === 'multiple' ? values.maxSelections : deleteField(),
+                    eleccionDeCargo: isCargoElection,
                 });
             } catch (error: any) {
                 errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -282,6 +285,7 @@ export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: open
             options: values.options.map((opt, index) => ({ id: `opt_${index + 1}`, text: opt.text })),
             pollType: values.pollType,
             ...(values.pollType === 'multiple' && { maxSelections: values.maxSelections }),
+            eleccionDeCargo: isCargoElection,
             status: 'pending' as const,
             adminId: user.uid,
             createdAt: serverTimestamp(),
@@ -395,13 +399,12 @@ export function CreatePollDialog({ sourcePoll: duplicateOf, editPoll, open: open
 
             <div className='space-y-2'>
               <Label>Opciones</Label>
-              {isCargoElection && (
-                <Alert variant="default" className="bg-blue-50 border-blue-200 text-blue-800 p-2">
-                    <AlertDescription className="text-xs">
-                        Búsqueda de voluntarios activa para las opciones.
-                    </AlertDescription>
-                </Alert>
-              )}
+              <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2">
+                <Label htmlFor="cargo-search" className="text-xs font-medium cursor-pointer leading-tight">
+                  Buscar nombres de voluntarios al escribir las opciones
+                </Label>
+                <Switch id="cargo-search" checked={isCargoElection} onCheckedChange={setIsCargoElection} />
+              </div>
               {fields.map((field, index) => {
                   const isFixed = index >= fields.length - 2;
                   return (

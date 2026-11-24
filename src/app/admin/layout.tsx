@@ -124,16 +124,16 @@ export default function AdminLayout({
 
   // 3. Renderizar el layout completo solo para administradores autenticados (no anónimos)
   return (
-    <SidebarProvider>
+    // El menú lateral parte cerrado (también en computador); se abre con el botón de hamburguesa.
+    <SidebarProvider defaultOpen={false}>
         <AdminSidebar />
         <SidebarInset>
-            <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-4 border-b bg-background px-4 sm:h-16 sm:px-6 md:hidden">
-                <SidebarTrigger />
+            <header className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-background px-4 sm:h-16 sm:px-6">
+                <SidebarTrigger aria-label="Abrir o cerrar menú" className="h-9 w-9" />
                 <Link href="/admin/dashboard" className="flex items-center gap-2 font-semibold">
                     <ElectorIcon className="h-6 w-6 text-primary" />
                     <span className="font-headline">E-lector</span>
                 </Link>
-                <div className="w-7" />
             </header>
             <main className="flex-1 p-4 sm:p-6">
                 {children}
