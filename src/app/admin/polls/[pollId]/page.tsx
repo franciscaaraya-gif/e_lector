@@ -413,7 +413,8 @@ export default function PollDetailsPage() {
     const want = new Set((assignedGroup.voters || []).map(m => m.id));
     const toAdd = (assignedGroup.voters || []).filter(m => !have.has(m.id));
     const toRemove = votersStatus.filter(v => !want.has(v.voterId) && !v.hasVoted);
-    return { toAdd, toRemove };
+    const dups = votersStatus.length - have.size; // personas repetidas en el registro
+    return { toAdd, toRemove, dups };
   }, [assignedGroup, votersStatus]);
 
   const runGroupSync = async (manual = false) => {
@@ -435,11 +436,11 @@ export default function PollDetailsPage() {
 
   useEffect(() => {
     if (!syncDiff || isAssigning) return;
-    if (syncDiff.toAdd.length === 0 && syncDiff.toRemove.length === 0) {
+    if (syncDiff.toAdd.length === 0 && syncDiff.toRemove.length === 0 && syncDiff.dups === 0) {
       lastSyncSignature.current = '';
       return;
     }
-    const signature = syncDiff.toAdd.map(m => m.id).join(',') + '|' + syncDiff.toRemove.map(v => v.voterId).join(',');
+    const signature = syncDiff.toAdd.map(m => m.id).join(',') + '|' + syncDiff.toRemove.map(v => v.voterId).join(',') + '|' + syncDiff.dups;
     if (signature === lastSyncSignature.current) return; // ya se intentó con estos mismos datos
     lastSyncSignature.current = signature;
     runGroupSync();
@@ -651,13 +652,13 @@ export default function PollDetailsPage() {
           </div>
       )}
       
-      {syncDiff && (syncDiff.toAdd.length > 0 || syncDiff.toRemove.length > 0) && (
+      {syncDiff && (syncDiff.toAdd.length > 0 || syncDiff.toRemove.length > 0 || syncDiff.dups > 0) && (
           <Card className="border-orange-300 bg-orange-50">
               <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="text-sm text-orange-900">
                       <p className="font-semibold">El grupo cambió y este registro aún no coincide.</p>
                       <p className="text-xs">
-                          {syncDiff.toAdd.length} por agregar · {syncDiff.toRemove.length} por quitar.
+                          {syncDiff.toAdd.length} por agregar · {syncDiff.toRemove.length} por quitar{syncDiff.dups > 0 ? ` · ${syncDiff.dups} repetido(s)` : ''}.
                           {syncError && <span className="font-bold"> No se pudo sincronizar automáticamente (error: {syncError}).</span>}
                       </p>
                   </div>

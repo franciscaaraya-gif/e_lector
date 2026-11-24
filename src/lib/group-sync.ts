@@ -9,6 +9,8 @@ export type PollSyncResult = {
   removed: string[];
   /** Personas que salieron del grupo pero ya habían votado: se conservan en el registro. */
   keptBecauseVoted: string[];
+  /** Registros repetidos de una misma persona que se limpiaron. */
+  deduped: string[];
 };
 
 const fullName = (v: { nombre?: string; apellido?: string }) =>
@@ -41,11 +43,31 @@ export async function syncGroupToPolls(
     const votersRef = collection(firestore, 'admins', adminId, 'polls', pollDoc.id, 'voters');
     const votersSnap = await getDocs(votersRef);
 
-    const existing = new Map<string, { ref: (typeof votersSnap.docs)[number]['ref']; data: any }>();
-    votersSnap.forEach(d => existing.set((d.data() as any).voterId, { ref: d.ref, data: d.data() }));
-    const desired = new Map(members.map(m => [m.id, m]));
+    // Agrupar por persona. Si una persona quedó repetida (por ejemplo por dos sincronizaciones
+    // a la vez), se conserva un solo registro (preferentemente el que ya votó) y se borran los demás.
+    type VoterDoc = { ref: (typeof votersSnap.docs)[number]['ref']; data: any };
+    const byVoter = new Map<string, VoterDoc[]>();
+    votersSnap.forEach(d => {
+      const vid = (d.data() as any).voterId;
+      const list = byVoter.get(vid) || [];
+      list.push({ ref: d.ref, data: d.data() });
+      byVoter.set(vid, list);
+    });
 
     const batch = writeBatch(firestore);
+    const dedupedNames: string[] = [];
+    const existing = new Map<string, VoterDoc>();
+    byVoter.forEach((list, vid) => {
+      const keep = list.find(x => x.data.hasVoted) || list.find(x => x.data.enabled === false) || list[0];
+      existing.set(vid, keep);
+      list.forEach(x => {
+        if (x !== keep) {
+          batch.delete(x.ref);
+          dedupedNames.push(fullName(x.data));
+        }
+      });
+    });
+    const desired = new Map(members.map(m => [m.id, m]));
     const result: PollSyncResult = {
       pollId: pollDoc.id,
       question: poll.question || '',
@@ -53,11 +75,14 @@ export async function syncGroupToPolls(
       added: [],
       removed: [],
       keptBecauseVoted: [],
+      deduped: dedupedNames,
     };
 
     desired.forEach((m, id) => {
       if (existing.has(id)) return;
-      batch.set(doc(votersRef), {
+      // ID fijo por persona: si dos sincronizaciones corren a la vez escriben el MISMO documento
+      // y no se duplica.
+      batch.set(doc(votersRef, `v_${String(id).replace(/[^A-Za-z0-9_-]/g, '_')}`), {
         voterId: id,
         pollId: pollDoc.id,
         hasVoted: false,
@@ -79,10 +104,10 @@ export async function syncGroupToPolls(
       }
     });
 
-    if (result.added.length || result.removed.length) {
+    if (result.added.length || result.removed.length || result.deduped.length) {
       await batch.commit();
     }
-    if (result.added.length || result.removed.length || result.keptBecauseVoted.length) {
+    if (result.added.length || result.removed.length || result.keptBecauseVoted.length || result.deduped.length) {
       results.push(result);
     }
   }

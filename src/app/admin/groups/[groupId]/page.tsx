@@ -171,6 +171,19 @@ export default function GroupDetailsPage() {
     return sortPeople(group.voters, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
   }, [group?.voters]);
 
+  // Nombres repetidos dentro del grupo (misma persona con dos registros distintos)
+  const duplicateNames = useMemo(() => {
+    const count = new Map<string, { label: string; n: number }>();
+    (group?.voters || []).forEach(v => {
+      const label = formatFullName(v.nombre, v.apellido);
+      const key = label.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const cur = count.get(key) || { label, n: 0 };
+      cur.n++;
+      count.set(key, cur);
+    });
+    return Array.from(count.values()).filter(c => c.n > 1);
+  }, [group?.voters]);
+
   // Refleja los cambios del grupo en las votaciones pendientes/activas que lo usan.
   // Se encadena (una a la vez) y siempre usa la lista MÁS RECIENTE de miembros.
   const queueSync = () => {
@@ -182,6 +195,7 @@ export default function GroupDetailsPage() {
           const parts: string[] = [];
           if (r.added.length) parts.push(`agregado/a: ${r.added.join(', ')}`);
           if (r.removed.length) parts.push(`quitado/a: ${r.removed.join(', ')}`);
+          if (r.deduped.length) parts.push(`repetido(s) eliminado(s): ${r.deduped.join(', ')}`);
           if (r.keptBecauseVoted.length) parts.push(`ya votó, se mantiene: ${r.keptBecauseVoted.join(', ')}`);
           toast({
             title: r.status === 'active' ? 'Votación activa actualizada' : 'Votación pendiente actualizada',
@@ -546,6 +560,14 @@ export default function GroupDetailsPage() {
               <div className="text-2xl font-bold">{group.voters.length}</div>
             </CardHeader>
             <CardContent>
+              {duplicateNames.length > 0 && (
+                <Alert variant="destructive" className="mb-4">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-xs">
+                    Hay personas repetidas en el grupo: {duplicateNames.map(d => `${d.label} (×${d.n})`).join(', ')}. Elimina el registro que sobra con el botón de la papelera.
+                  </AlertDescription>
+                </Alert>
+              )}
               <div className="border rounded-md">
                 <Table>
                   <TableHeader>
