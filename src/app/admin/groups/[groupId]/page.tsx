@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { sortPeople, formatFullName } from '@/lib/utils';
 import { OnScreenKeyboard } from '@/components/ui/on-screen-keyboard';
+import { syncGroupToPolls } from '@/lib/group-sync';
 
 // Los lectores RFID se comportan como teclado: escriben el código y luego Enter.
 // Se normaliza para tolerar guiones, espacios, mayúsculas y ceros a la izquierda.
@@ -78,6 +79,7 @@ export default function GroupDetailsPage() {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const votersRef = useRef<VoterInfo[]>([]);
   const writeChain = useRef<Promise<void>>(Promise.resolve());
+  const syncChain = useRef<Promise<void>>(Promise.resolve());
 
   const [isEditNameOpen, setIsEditNameOpen] = useState(false);
   const [newName, setNewName] = useState('');
@@ -169,6 +171,27 @@ export default function GroupDetailsPage() {
     return sortPeople(group.voters, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
   }, [group?.voters]);
 
+  // Refleja los cambios del grupo en las votaciones pendientes/activas que lo usan.
+  // Se encadena (una a la vez) y siempre usa la lista MÁS RECIENTE de miembros.
+  const queueSync = () => {
+    if (!firestore || !user) return;
+    syncChain.current = syncChain.current
+      .then(async () => {
+        const results = await syncGroupToPolls(firestore, user.uid, groupId, votersRef.current);
+        results.forEach(r => {
+          const parts: string[] = [];
+          if (r.added.length) parts.push(`agregado/a: ${r.added.join(', ')}`);
+          if (r.removed.length) parts.push(`quitado/a: ${r.removed.join(', ')}`);
+          if (r.keptBecauseVoted.length) parts.push(`ya votó, se mantiene: ${r.keptBecauseVoted.join(', ')}`);
+          toast({
+            title: r.status === 'active' ? 'Votación activa actualizada' : 'Votación pendiente actualizada',
+            description: `«${r.question}» — ${parts.join(' · ')}`,
+          });
+        });
+      })
+      .catch(err => console.error('No se pudo sincronizar el grupo con las votaciones:', err));
+  };
+
   const addVoterToGroup = async (voter: VoterInfo) => {
     if (!group || !groupRef) return;
 
@@ -179,12 +202,14 @@ export default function GroupDetailsPage() {
     }
 
     const updatedVoters = [...group.voters, voter];
+    votersRef.current = updatedVoters;
     setIsUpdating(true);
 
     try {
       await updateDoc(groupRef, { voters: updatedVoters });
       toast({ title: 'Agregado', description: `${voter.nombre} ha sido añadido al grupo.` });
       setSearchId('');
+      queueSync();
     } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: groupRef.path,
@@ -217,7 +242,7 @@ export default function GroupDetailsPage() {
       }
     });
     writeChain.current = run.catch(() => {});
-    return run.then(() => true);
+    return run.then(() => { queueSync(); return true; });
   };
 
   const kbChange = (updater: (prev: string) => string) => {
@@ -275,11 +300,13 @@ export default function GroupDetailsPage() {
     if (!group || !groupRef) return;
 
     const updatedVoters = group.voters.filter(v => v.id !== voterId);
+    votersRef.current = updatedVoters;
     setIsUpdating(true);
 
     try {
       await updateDoc(groupRef, { voters: updatedVoters });
       toast({ title: 'Votante Eliminado', description: 'La persona ha sido retirada del grupo.' });
+      queueSync();
     } catch (error) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: groupRef.path,
