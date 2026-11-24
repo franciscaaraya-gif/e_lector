@@ -9,7 +9,7 @@ import {
   LabelList,
 } from "recharts"
 import { useCollection, useFirestore, useUser, useMemoFirebase } from '@/firebase';
-import { Poll, Vote, VoterStatus } from '@/lib/types';
+import { Poll, Vote, VoterStatus, ListaCompletaItem } from '@/lib/types';
 import { collection } from 'firebase/firestore';
 import {
   Dialog,
@@ -39,6 +39,23 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { cn, sortPeople, formatFullName } from "@/lib/utils";
 
+const PARTICLES = new Set(['de', 'del', 'la', 'las', 'los', 'san', 'santa', 'y']);
+const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+
+// "Francisca Paola" + "Araya Armijo" -> "F. Araya A."
+function shortPersonName(nombres: string, apellidos: string): string {
+    const first = nombres.trim().split(/\s+/)[0] || '';
+    const ap = apellidos.trim().split(/\s+/).filter(Boolean);
+    if (!first || ap.length === 0) return `${first} ${apellidos}`.trim();
+    // Apellidos con partícula ("De la Cruz"): se agrupan con la palabra siguiente
+    let primer = ap.shift() as string;
+    while (ap.length > 0 && PARTICLES.has((primer.split(' ').pop() || '').toLowerCase())) primer += ' ' + ap.shift();
+    const segundo = ap[0] ? ` ${ap[0].charAt(0).toUpperCase()}.` : '';
+    return `${first.charAt(0).toUpperCase()}. ${primer.split(' ').map((w, i) => (i > 0 && PARTICLES.has(w.toLowerCase()) ? w.toLowerCase() : cap(w))).join(' ')}${segundo}`;
+}
+
+const normName = (t: string) => (t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
 interface PollResultsDialogProps {
   poll: Poll;
   open: boolean;
@@ -61,6 +78,23 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         if (!firestore || !user) return null;
         return collection(firestore, 'admins', user.uid, 'polls', poll.id, 'voters');
     }, [firestore, user, poll.id]);
+
+    // Lista de personal: sirve para acortar los nombres de las opciones en el gráfico
+    const personalRef = useMemoFirebase(() => {
+        if (!firestore || !user) return null;
+        return collection(firestore, 'admins', user.uid, 'lista_completa');
+    }, [firestore, user]);
+    const { data: personal } = useCollection<ListaCompletaItem>(personalRef);
+
+    const shortNameFor = useMemo(() => {
+        const byFullName = new Map<string, ListaCompletaItem>();
+        (personal || []).forEach(p => byFullName.set(normName(formatFullName(p.nombres, p.apellidos)), p));
+        return (optionText: string): string => {
+            const person = byFullName.get(normName(optionText));
+            if (person) return shortPersonName(person.nombres, person.apellidos);
+            return optionText;
+        };
+    }, [personal]);
 
     const { data: votes, isLoading: votesLoading } = useCollection<Vote>(votesRef);
     const { data: votersStatus, isLoading: votersStatusLoading } = useCollection<VoterStatus>(votersRef);
@@ -106,13 +140,14 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
             const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
             return {
                 name: option.text,
+                label: shortNameFor(option.text),
                 votes: count,
                 percentage: percentage,
                 displayLabel: `${count} (${percentage.toFixed(1)}%)`,
                 countLabel: String(count),
             };
         }).sort((a, b) => b.votes - a.votes);
-    }, [votes, poll.options]);
+    }, [votes, poll.options, shortNameFor]);
 
     const sortedVotersStatus = useMemo(() => {
         return sortPeople(votersStatus, (v) => ({ nombres: v.nombre, apellidos: v.apellido }));
@@ -324,7 +359,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                         <h4 className="font-semibold text-sm mb-4 flex items-center gap-2">
                             <Info className="h-4 w-4" /> Distribución de Resultados
                         </h4>
-                        <div className="h-72 w-full">
+                        <div className="w-full" style={{ height: Math.max(288, chartData.length * 30 + 24) }}>
                         {!isLoading && votes?.length === 0 ? (
                             <p className="text-center text-muted-foreground pt-16 italic">Aún no hay votos registrados.</p>
                         ) : (
@@ -332,12 +367,13 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                 <BarChart accessibilityLayer data={chartData} layout="vertical" margin={{ left: 10, right: 60 }}>
                                     <XAxis type="number" hide />
                                     <YAxis
-                                        dataKey="name"
+                                        dataKey="label"
                                         type="category"
+                                        interval={0}
                                         tickLine={false}
                                         axisLine={false}
                                         tick={{ fill: "hsl(var(--foreground))", fontSize: 11 }}
-                                        width={120}
+                                        width={96}
                                         />
                                     <Tooltip
                                         cursor={{ fill: "hsl(var(--muted))" }}
