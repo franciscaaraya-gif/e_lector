@@ -56,7 +56,7 @@ const formSchema = z.object({
 const normalizeText = (s: string) =>
     (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: number, volunteers: ListaCompletaItem[] }) => {
+const AutocompleteInput = ({ field, index, volunteers, onEnter }: { field: any, index: number, volunteers: ListaCompletaItem[], onEnter?: (e: React.KeyboardEvent<HTMLInputElement>) => void }) => {
     const [suggestions, setSuggestions] = useState<ListaCompletaItem[]>([]);
     const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -98,6 +98,7 @@ const AutocompleteInput = ({ field, index, volunteers }: { field: any, index: nu
                     value={field.value || ''}
                     onChange={handleInputChange}
                     onBlur={field.onBlur}
+                    onKeyDown={onEnter}
                     name={field.name}
                     ref={field.ref}
                     autoComplete="off"
@@ -282,6 +283,17 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
   const addOptionBeforeDefaults = () => {
     const indexToInsert = Math.max(0, fields.length - 2);
     insert(indexToInsert, { text: '' });
+    // Dejar el cursor listo en la opción nueva
+    setTimeout(() => form.setFocus(`options.${indexToInsert}.text` as const), 0);
+  };
+
+  // Enter dentro de una opción: agrega otra opción (no crea la votación).
+  // Si la opción actual está vacía no se agrega otra, para no acumular campos en blanco.
+  const handleOptionEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (e.currentTarget.value.trim() === '') return;
+    addOptionBeforeDefaults();
   };
 
   return (
@@ -304,7 +316,14 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4">
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            // Enter en cualquier campo de texto NO envía el formulario: la votación solo se crea con el botón.
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.target instanceof HTMLInputElement) e.preventDefault();
+            }}
+            className="space-y-4 overflow-y-auto pr-6 pl-1 -mr-4"
+          >
             <div className="space-y-2">
               <Label>Plantilla (Opcional)</Label>
               <Select onValueChange={handleTemplateChange} value={selectedTemplateId} disabled={templatesLoading}>
@@ -362,11 +381,13 @@ export function CreatePollDialog({ sourcePoll, open: openProp, onOpenChange, hid
                                             field={formField}
                                             index={index}
                                             volunteers={volunteers || []}
+                                            onEnter={handleOptionEnter}
                                         />
                                     ) : (
                                         <Input 
                                             placeholder={`Opción ${index + 1}`} 
                                             {...formField} 
+                                            onKeyDown={handleOptionEnter}
                                             disabled={isFixed}
                                             className={isFixed ? "bg-muted" : ""}
                                         />
