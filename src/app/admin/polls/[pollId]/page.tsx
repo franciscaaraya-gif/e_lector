@@ -265,6 +265,27 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                             />
                         </div>
                     </div>
+                    {poll.status === 'pending' && (
+                        <div className="space-y-2 pt-2">
+                            <div className="grid grid-cols-3 gap-3">
+                                <div className="rounded-md border bg-muted/40 p-3 text-center">
+                                    <p className="text-[10px] uppercase font-bold text-muted-foreground">En sala</p>
+                                    <p className="text-2xl font-bold">{stats.total}</p>
+                                </div>
+                                <div className="rounded-md border border-green-200 bg-green-50 p-3 text-center">
+                                    <p className="text-[10px] uppercase font-bold text-green-700">Habilitados</p>
+                                    <p className="text-2xl font-bold text-green-700">{stats.enabled}</p>
+                                </div>
+                                <div className="rounded-md border border-red-200 bg-red-50 p-3 text-center">
+                                    <p className="text-[10px] uppercase font-bold text-red-700">No habilitados</p>
+                                    <p className="text-2xl font-bold text-red-700">{stats.disabled}</p>
+                                </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                {stats.total} en sala = {stats.enabled} habilitados + {stats.disabled} no habilitados. Solo los habilitados podrán votar. Los números se actualizan al cambiar la habilitación.
+                            </p>
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent>
                     <div className="border rounded-md overflow-hidden">
