@@ -101,7 +101,8 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
         let list = mergedVoters;
         
         if (poll.status === 'active') {
-            list = list.filter(v => v.enabled && !v.hasVoted);
+            // Pendientes por votar: incluye bloqueados, para poder volver a habilitarlos
+            list = list.filter(v => !v.hasVoted);
         }
 
         if (searchTerm.trim()) {
@@ -251,7 +252,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                             </CardTitle>
                             <CardDescription>
                                 {poll.status === 'active' 
-                                    ? 'Listado de personas habilitadas que aún no han emitido su voto.' 
+                                    ? 'Personas que aún no han votado. Si alguien llegó tarde o no corresponde, bloquéalo aquí. Los cambios del grupo se reflejan solos.' 
                                     : 'Gestión de acceso para el grupo asignado.'}
                             </CardDescription>
                         </div>
@@ -272,7 +273,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                             <TableHeader>
                                 <TableRow className="bg-muted/50">
                                     <TableHead>Nombre Completo</TableHead>
-                                    {poll.status === 'pending' && <TableHead>Habilitación</TableHead>}
+                                    {(poll.status === 'pending' || poll.status === 'active') && <TableHead>Habilitación</TableHead>}
                                     {poll.status !== 'active' && <TableHead>¿Votó?</TableHead>}
                                     <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
@@ -281,7 +282,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                 {filteredVoters.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="h-32 text-center text-muted-foreground italic">
-                                            {searchTerm ? 'No se encontraron coincidencias.' : (poll.status === 'active' ? '¡Todos los habilitados han votado!' : 'No hay votantes en esta lista.')}
+                                            {searchTerm ? 'No se encontraron coincidencias.' : (poll.status === 'active' ? '¡Todos han votado!' : 'No hay votantes en esta lista.')}
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -290,7 +291,7 @@ function VoterList({ poll, votersStatus, votes }: { poll: Poll, votersStatus: Vo
                                             <TableCell className="font-medium">
                                                 {formatFullName(voter.nombre, voter.apellido)}
                                             </TableCell>
-                                            {poll.status === 'pending' && (
+                                            {(poll.status === 'pending' || poll.status === 'active') && (
                                                 <TableCell>
                                                     <div className="flex items-center space-x-2">
                                                         <Switch 
