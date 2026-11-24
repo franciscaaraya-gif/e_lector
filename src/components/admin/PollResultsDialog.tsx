@@ -19,7 +19,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
 import { Skeleton } from "../ui/skeleton";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -46,6 +48,9 @@ interface PollResultsDialogProps {
 export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialogProps) {
     const firestore = useFirestore();
     const { user } = useUser();
+    // Los porcentajes no siempre convienen: por defecto se ocultan y se muestran con el interruptor.
+    // También afecta al PDF que se descarga.
+    const [showPercentages, setShowPercentages] = useState(false);
 
     const votesRef = useMemoFirebase(() => {
         if (!firestore || !user) return null;
@@ -104,6 +109,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 votes: count,
                 percentage: percentage,
                 displayLabel: `${count} (${percentage.toFixed(1)}%)`,
+                countLabel: String(count),
             };
         }).sort((a, b) => b.votes - a.votes);
     }, [votes, poll.options]);
@@ -131,14 +137,14 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text("Resumen de Participación", 20, 70);
         autoTable(doc, {
             startY: 75,
-            head: [['En Sala', 'Con Derecho', 'No Habil.', 'Votaron', 'No Votaron', 'Part. Real']],
+            head: [['En Sala', 'Con Derecho', 'No Habil.', 'Votaron', 'No Votaron', ...(showPercentages ? ['Part. Real'] : [])]],
             body: [[
                 stats.universe, 
                 stats.enabled, 
                 stats.disabled, 
                 stats.cast, 
                 stats.notVoted,
-                `${stats.participation.toFixed(1)}%`
+                ...(showPercentages ? [`${stats.participation.toFixed(1)}%`] : [])
             ]],
             theme: 'grid',
             headStyles: { fillColor: [37, 56, 118] }
@@ -163,8 +169,10 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text("Resultados por Opción", 20, finalYStats + 35);
         autoTable(doc, {
             startY: finalYStats + 40,
-            head: [['Opción', 'Votos Recibidos', 'Porcentaje']],
-            body: chartData.map(item => [item.name, item.votes, `${item.percentage.toFixed(1)}%`]),
+            head: [showPercentages ? ['Opción', 'Votos Recibidos', 'Porcentaje'] : ['Opción', 'Votos Recibidos']],
+            body: chartData.map(item => showPercentages
+                ? [item.name, item.votes, `${item.percentage.toFixed(1)}%`]
+                : [item.name, item.votes]),
             theme: 'striped',
             headStyles: { fillColor: [37, 56, 118] }
         });
@@ -226,6 +234,11 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                 </DialogHeader>
 
                 <div className="space-y-6 py-4">
+                    <div className="flex items-center justify-end gap-2">
+                        <Switch id="show-percentages" checked={showPercentages} onCheckedChange={setShowPercentages} />
+                        <Label htmlFor="show-percentages" className="text-xs font-medium cursor-pointer">Mostrar porcentajes</Label>
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                          <div className="bg-muted/50 p-3 rounded-lg flex items-center gap-3">
                             <Clock className="h-5 w-5 text-muted-foreground" />
@@ -268,7 +281,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                 <div className="text-center border rounded-lg p-3 bg-primary/5 border-primary/20">
                                     <div className="flex justify-center mb-1"><VoteIcon className="h-4 w-4 text-primary" /></div>
                                     <div className="text-xl font-bold text-primary">{stats.cast}</div>
-                                    <div className="text-[10px] text-primary uppercase">Votaron ({stats.participation.toFixed(1)}%)</div>
+                                    <div className="text-[10px] text-primary uppercase">Votaron{showPercentages ? ` (${stats.participation.toFixed(1)}%)` : ''}</div>
                                 </div>
                                 <div className={cn("text-center border rounded-lg p-3", stats.notVoted > 0 ? "bg-orange-50 border-orange-200" : "bg-muted/30")}>
                                     <div className="flex justify-center mb-1"><Users className={cn("h-4 w-4", stats.notVoted > 0 ? "text-orange-600" : "text-muted-foreground")} /></div>
@@ -335,7 +348,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                                 return (
                                                     <div className="flex flex-col">
                                                         <span className="font-bold">{payload.name}</span>
-                                                        <span>{value} Votos ({payload.percentage?.toFixed(1) || '0.0'}%)</span>
+                                                        <span>{value} Votos{showPercentages ? ` (${payload.percentage?.toFixed(1) || '0.0'}%)` : ''}</span>
                                                     </div>
                                                 );
                                             }}
@@ -345,7 +358,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                     />
                                     <Bar dataKey="votes" radius={4} fill="hsl(var(--primary))">
                                          <LabelList 
-                                            dataKey="displayLabel" 
+                                            dataKey={showPercentages ? 'displayLabel' : 'countLabel'} 
                                             position="right" 
                                             style={{ fill: 'hsl(var(--foreground))', fontSize: '12px', fontWeight: 'bold' }} 
                                          />
@@ -362,7 +375,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                 <TableRow className="bg-muted/50">
                                     <TableHead className="text-xs">Opción</TableHead>
                                     <TableHead className="text-right text-xs">Votos</TableHead>
-                                    <TableHead className="text-right text-xs">%</TableHead>
+                                    {showPercentages && <TableHead className="text-right text-xs">%</TableHead>}
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -370,7 +383,7 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                     <TableRow key={item.name}>
                                         <TableCell className="text-sm py-2 font-medium">{item.name}</TableCell>
                                         <TableCell className="text-right text-sm py-2">{item.votes}</TableCell>
-                                        <TableCell className="text-right text-sm py-2">{item.percentage.toFixed(1)}%</TableCell>
+                                        {showPercentages && <TableCell className="text-right text-sm py-2">{item.percentage.toFixed(1)}%</TableCell>}
                                     </TableRow>
                                 ))}
                             </TableBody>
