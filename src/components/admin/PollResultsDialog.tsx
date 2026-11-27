@@ -112,9 +112,11 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         const participation = enabled > 0 ? (cast / enabled) * 100 : 0;
 
         const salaCuadra = universe === (enabled + disabled);
-        const participaciónCuadra = enabled === (cast + notVoted);
+        // Hay más votos que votantes habilitados: algo no cuadra (p. ej. un voto duplicado)
+        const sobrantes = Math.max(0, cast - enabled);
+        const participaciónCuadra = sobrantes === 0;
 
-        return { universe, enabled, disabled, cast, notVoted, participation, salaCuadra, participaciónCuadra };
+        return { universe, enabled, disabled, cast, notVoted, sobrantes, participation, salaCuadra, participaciónCuadra };
     }, [votersStatus, votes]);
 
     const chartData = useMemo(() => {
@@ -200,7 +202,10 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
         doc.text(`Cuadratura Sala: ${stats.universe} (Sala) = ${stats.enabled} (Habilitados) + ${stats.disabled} (No Habilitados)`, 20, finalYStats + 10);
         doc.text(`Cuadratura Voto: ${stats.enabled} (Derecho) = ${stats.cast} (Votaron) + ${stats.notVoted} (No Votaron)`, 20, finalYStats + 16);
         
-        if (stats.notVoted > 0) {
+        if (stats.sobrantes > 0) {
+            doc.setTextColor(200, 0, 0);
+            doc.text(`ATENCIÓN: hay ${stats.sobrantes} voto(s) más que votantes habilitados. La cuadratura NO cuadra.`, 20, finalYStats + 22);
+        } else if (stats.notVoted > 0) {
             doc.setTextColor(200, 100, 0);
             doc.text(`${stats.notVoted} voluntarios habilitados no votaron.`, 20, finalYStats + 22);
         } else {
@@ -345,8 +350,13 @@ export function PollResultsDialog({ poll, open, onOpenChange }: PollResultsDialo
                                     Cuadratura Voto: {stats.enabled} (Derecho) = {stats.cast} (Votaron) + {stats.notVoted} (No Votaron)
                                     {!stats.participaciónCuadra && <span className="font-bold ml-2">⚠️ Los totales no cuadran</span>}
                                 </div>
-                                <div className={cn("flex items-center gap-2 text-xs font-bold", stats.notVoted > 0 ? "text-orange-600" : "text-green-600")}>
-                                    {stats.notVoted > 0 ? (
+                                <div className={cn("flex items-center gap-2 text-xs font-bold", stats.sobrantes > 0 ? "text-destructive" : stats.notVoted > 0 ? "text-orange-600" : "text-green-600")}>
+                                    {stats.sobrantes > 0 ? (
+                                        <>
+                                            <AlertTriangle className="h-3.5 w-3.5" />
+                                            Hay {stats.sobrantes} voto(s) más que votantes habilitados: la cuadratura no cuadra.
+                                        </>
+                                    ) : stats.notVoted > 0 ? (
                                         <>
                                             <AlertTriangle className="h-3.5 w-3.5" />
                                             {stats.notVoted} voluntarios habilitados no votaron.

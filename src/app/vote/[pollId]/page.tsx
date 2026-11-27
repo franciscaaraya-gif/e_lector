@@ -7,7 +7,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { collection, doc, getDoc, getDocs, query, where, writeBatch, limit, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, runTransaction, limit, Timestamp } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -145,8 +145,6 @@ function VotePageClient() {
         }
 
         try {
-            const batch = writeBatch(firestore);
-
             // Shuffling: Redondeo de tiempo a bloques de 10 segundos para romper correlación temporal
             const now = Date.now();
             const rounded = Math.floor(now / 10000) * 10000;
@@ -157,17 +155,26 @@ function VotePageClient() {
 
             const votesRef = collection(firestore, 'admins', adminId, 'polls', pollId, 'votes');
             const newVoteRef = doc(votesRef); // ID automático generado por Firebase
-            batch.set(newVoteRef, {
-                pollId: poll.id,
-                adminId: adminId,
-                selectedOptions: Array.isArray(values.selectedOptions) ? values.selectedOptions : [values.selectedOptions],
-                createdAt: createdAt,
-            });
-
             const voterRef = doc(firestore, 'admins', adminId, 'polls', pollId, 'voters', voterDocId);
-            batch.update(voterRef, { hasVoted: true });
-            
-            await batch.commit();
+
+            // Transacción: se lee el registro del votante y solo si NO ha votado se
+            // crea el voto y se marca hasVoted. Si dos envíos llegan a la vez (doble toque,
+            // dos pestañas), Firestore reintenta el segundo y este ve hasVoted = true.
+            await runTransaction(firestore, async (tx) => {
+                const voterSnap = await tx.get(voterRef);
+                if (!voterSnap.exists()) throw new Error('No se encontró tu registro en esta votación.');
+                const v = voterSnap.data() as VoterStatus;
+                if (v.hasVoted) throw new Error('Ya has emitido tu voto para esta votación.');
+                if (v.enabled === false) throw new Error('No tienes permitido votar en esta votación.');
+
+                tx.set(newVoteRef, {
+                    pollId: poll.id,
+                    adminId: adminId,
+                    selectedOptions: Array.isArray(values.selectedOptions) ? values.selectedOptions : [values.selectedOptions],
+                    createdAt: createdAt,
+                });
+                tx.update(voterRef, { hasVoted: true });
+            });
 
             router.push(`/vote/success?voterId=${voterId}&salaId=${adminId}`);
 
