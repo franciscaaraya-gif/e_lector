@@ -17,7 +17,14 @@ service cloud.firestore {
 
     match /{path=**}/voters/{vDocId} {
         allow read: if true;
-        allow create, update: if isSignedIn();
+        // Crear votantes: solo administradores (se hace en la regla de cada votación).
+        // Un votante solo puede marcarse a sí mismo como «votó» (hasVoted false -> true),
+        // sin tocar ningún otro campo, y solo si está habilitado.
+        allow update: if isSignedIn() &&
+          resource.data.hasVoted == false &&
+          resource.data.enabled != false &&
+          request.resource.data.hasVoted == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hasVoted']);
         allow delete: if isAuthorizedAdmin(resource.data.adminId);
     }
 
