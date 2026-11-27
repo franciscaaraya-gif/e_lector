@@ -25,6 +25,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from '@/component
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { cn, exclusiveOptionKind } from '@/lib/utils';
+import { verifyPersonalToken, readStoredLink } from '@/lib/personal-link';
 
 function VotePageClient() {
     const { pollId } = useParams() as { pollId: string };
@@ -32,6 +33,7 @@ function VotePageClient() {
     const router = useRouter();
     const { toast } = useToast();
     const voterId = searchParams.get('voterId');
+    const tokenParam = searchParams.get('t');
 
     const [poll, setPoll] = useState<Poll | null>(null);
     const [voterDocId, setVoterDocId] = useState<string | null>(null);
@@ -71,6 +73,15 @@ function VotePageClient() {
                 const adminId = (lookupSnap.data() as PollLookup).adminId;
                 setAdminId(adminId);
 
+                // Enlace personal: sin él (o con uno ajeno) no se puede votar
+                let t = tokenParam;
+                if (!t) {
+                    const stored = readStoredLink(adminId);
+                    if (stored && stored.voterId === voterId) t = stored.token;
+                }
+                const linkOk = await verifyPersonalToken(firestore, adminId, voterId!, t);
+                if (!linkOk) throw new Error('Necesitas tu enlace personal para votar. Retíralo en la bandeja de entrada o avisa al secretario.');
+
                 const pollSnap = await getDoc(doc(firestore, 'admins', adminId, 'polls', pollId));
                 if (!pollSnap.exists()) throw new Error('Votación no encontrada o inválida.');
                 
@@ -104,7 +115,7 @@ function VotePageClient() {
         };
 
         fetchPollData();
-    }, [firestore, user, isAuthLoading, pollId, voterId]);
+    }, [firestore, user, isAuthLoading, pollId, voterId, tokenParam]);
 
     const formSchema = z.object({
         selectedOptions: poll?.pollType === 'simple'
@@ -169,7 +180,7 @@ function VotePageClient() {
             
             await batch.commit();
 
-            router.push(`/vote/success?voterId=${voterId}&salaId=${adminId}`);
+            router.push(`/vote/success?voterId=${encodeURIComponent(voterId!)}&salaId=${adminId}${tokenParam ? `&t=${tokenParam}` : ''}`);
 
         } catch (err: any) {
             toast({ variant: 'destructive', title: 'Error al emitir el voto', description: err.message });

@@ -9,16 +9,17 @@ import Link from 'next/link';
 
 import { useAuth, useFirestore, useUser, useCollection, useMemoFirebase } from '@/firebase';
 import { Poll, VoterStatus } from '@/lib/types';
+import { verifyPersonalToken, readStoredLink } from '@/lib/personal-link';
 
 import { Card, CardHeader, CardTitle, CardDescription, CardFooter, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Info, CheckCircle2, UserX } from 'lucide-react';
+import { Info, CheckCircle2, UserX, KeyRound } from 'lucide-react';
 import InboxLoading from './loading';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 // Solo se muestran votaciones ACTIVAS: el padre ya filtra las pendientes y las cerradas.
-function PollInboxItem({ poll, voterStatus, voterId }: { poll: Poll, voterStatus: VoterStatus, voterId: string }) {
+function PollInboxItem({ poll, voterStatus, voterId, token }: { poll: Poll, voterStatus: VoterStatus, voterId: string, token: string }) {
     const isEnabled = voterStatus.enabled !== false;
 
     return (
@@ -45,7 +46,7 @@ function PollInboxItem({ poll, voterStatus, voterId }: { poll: Poll, voterStatus
                     <Button variant="ghost" className="w-full" disabled>Gracias por votar</Button>
                 ) : (
                     <Button asChild className="w-full shadow-md">
-                        <Link href={`/vote/${poll.id}?voterId=${voterId}`}>
+                        <Link href={`/vote/${poll.id}?voterId=${encodeURIComponent(voterId)}&t=${token}`}>
                             Ir a Votar Ahora
                         </Link>
                     </Button>
@@ -60,6 +61,10 @@ function PollsInboxClient() {
     const router = useRouter();
     const voterId = searchParams.get('voterId');
     const salaId = searchParams.get('salaId');
+    // El código del enlace personal viene en la URL; si falta, se usa el guardado en este teléfono.
+    const [token, setToken] = useState<string | null>(searchParams.get('t'));
+    // null = verificando, true = enlace válido, false = no válido
+    const [linkOk, setLinkOk] = useState<boolean | null>(null);
 
     const [isAuthenticating, setIsAuthenticating] = useState(false);
     
@@ -73,26 +78,41 @@ function PollsInboxClient() {
         signInAnonymously(auth).finally(() => setIsAuthenticating(false));
     }, [auth, user, isAuthLoading]);
 
+    useEffect(() => {
+        if (!firestore || !user || !voterId || !salaId) return;
+        let cancelled = false;
+        let t = token;
+        if (!t) {
+            const stored = readStoredLink(salaId);
+            if (stored && stored.voterId === voterId) { t = stored.token; setToken(t); }
+        }
+        setLinkOk(null);
+        verifyPersonalToken(firestore, salaId, voterId, t)
+            .then(ok => { if (!cancelled) setLinkOk(ok); })
+            .catch(() => { if (!cancelled) setLinkOk(false); });
+        return () => { cancelled = true; };
+    }, [firestore, user, voterId, salaId, token]);
+
     const votersQuery = useMemoFirebase(() => {
-        if (!firestore || !voterId || !salaId || !user) return null;
+        if (!firestore || !voterId || !salaId || !user || linkOk !== true) return null;
         return query(
             collectionGroup(firestore, 'voters'),
             where('adminId', '==', salaId),
             where('voterId', '==', voterId)
         );
-    }, [firestore, voterId, salaId, user]);
+    }, [firestore, voterId, salaId, user, linkOk]);
 
     const { data: voterDocs, isLoading: isDocsLoading } = useCollection<VoterStatus>(votersQuery);
 
     // Solo las votaciones activas de la sala. Se actualiza sola: cuando el secretario activa
     // o cierra una votación, aparece o desaparece sin recargar.
     const activePollsQuery = useMemoFirebase(() => {
-        if (!firestore || !salaId || !user) return null;
+        if (!firestore || !salaId || !user || linkOk !== true) return null;
         return query(
             collection(firestore, 'admins', salaId, 'polls'),
             where('status', '==', 'active')
         );
-    }, [firestore, salaId, user]);
+    }, [firestore, salaId, user, linkOk]);
 
     const { data: activePolls, isLoading: isPollsLoading } = useCollection<Poll>(activePollsQuery);
 
@@ -108,9 +128,31 @@ function PollsInboxClient() {
         }
     }, [voterId, salaId, router]);
 
-    const isLoading = isDocsLoading || isPollsLoading || isAuthLoading || isAuthenticating;
+    const isLoading = linkOk === null || (linkOk === true && (isDocsLoading || isPollsLoading)) || isAuthLoading || isAuthenticating;
 
     if (isLoading) return <InboxLoading />;
+
+    if (linkOk === false) {
+        return (
+            <div className="w-full space-y-6">
+                <Card className="text-center p-8 border-dashed border-2 bg-destructive/5 border-destructive/20">
+                    <CardContent className="pt-6 space-y-4">
+                        <div className="bg-destructive/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+                            <KeyRound className="h-8 w-8 text-destructive" />
+                        </div>
+                        <CardTitle>Enlace no válido</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                            Necesitas tu enlace personal para votar. Si aún no lo retiras, hazlo con tu N° de registro.
+                            Si ya lo retiraste y no te funciona, avisa al secretario para que lo libere.
+                        </p>
+                        <Button asChild size="lg" className="w-full font-bold">
+                            <Link href={`/inbox?salaId=${encodeURIComponent(salaId || '')}`}>Retirar mi enlace</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
     
     return (
         <div className="w-full space-y-6">
@@ -147,6 +189,7 @@ function PollsInboxClient() {
                             poll={poll}
                             voterStatus={voterDoc}
                             voterId={voterId!}
+                            token={token!}
                         />
                     ))}
                 </div>

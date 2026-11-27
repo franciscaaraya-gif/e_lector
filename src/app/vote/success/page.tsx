@@ -13,8 +13,9 @@ function VoteSuccessClient() {
   const searchParams = useSearchParams();
   const voterId = searchParams.get('voterId');
   const salaId = searchParams.get('salaId');
+  const token = searchParams.get('t');
 
-  const inboxHref = (voterId && salaId) ? `/inbox/polls?salaId=${salaId}&voterId=${voterId}` : '/inbox';
+  const inboxHref = (voterId && salaId) ? `/inbox/polls?salaId=${salaId}&voterId=${encodeURIComponent(voterId)}${token ? `&t=${token}` : ''}` : '/inbox';
 
   return (
     <div className="w-full max-w-md text-center">

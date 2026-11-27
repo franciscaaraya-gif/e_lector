@@ -121,3 +121,12 @@ export type PollTemplate = {
     maxSelections?: number;
     eleccionDeCargo?: boolean;
 };
+
+/** Enlace personal retirado por un voluntario (solo guarda la huella del código). */
+export type VoterLink = {
+  id: string;
+  adminId: string;
+  voterId: string;
+  tokenHash: string;
+  retiradoAt?: Timestamp;
+};

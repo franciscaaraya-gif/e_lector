@@ -65,6 +65,18 @@ service cloud.firestore {
         (isSignedIn() && request.auth.token.firebase.sign_in_provider != 'anonymous');
       allow create, update, delete: if isAuthorizedAdmin(adminId);
 
+      // Enlace personal: el voluntario lo retira UNA vez (crear solo funciona si aún no existe).
+      // Solo se guarda la huella del código. Regenerar = que el administrador borre el documento.
+      match /voterLinks/{linkId} {
+        allow read: if true;
+        allow create: if isSignedIn() &&
+          request.resource.data.keys().hasOnly(['adminId', 'voterId', 'tokenHash', 'retiradoAt']) &&
+          request.resource.data.adminId == adminId &&
+          request.resource.data.tokenHash is string &&
+          request.resource.data.tokenHash.size() == 64;
+        allow update, delete: if isAuthorizedAdmin(adminId);
+      }
+
       match /groups/{groupId} {
         allow read, write: if isAuthorizedAdmin(adminId);
       }
